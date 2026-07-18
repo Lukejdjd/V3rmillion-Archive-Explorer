@@ -20,12 +20,18 @@
             font-family: 'Open Sans', Tahoma, Verdana, Arial, sans-serif;
         }
         .logo-container { background: transparent !important; border: none !important; box-shadow: none !important; }
-        .logo-img { max-width: 200px; height: auto; }
+        .logo-img { max-width: 150px; height: auto; }
+        .archive-shell {
+            width: min(94vw, 1680px);
+            max-width: none;
+            margin: 24px auto;
+            padding: 0;
+        }
         .page-box {
             background-color: #111;
             border: 1px solid #2a2a2a;
             border-top: 4px solid #cd1818;
-            padding: 30px 30px 24px;
+            padding: clamp(18px, 2vw, 32px);
         }
         .card {
             background-color: #111;
@@ -144,7 +150,7 @@
             display: flex; justify-content: center; align-items: center;
         }
         .viewer-card {
-            width: 92%; max-width: 950px; max-height: 90vh;
+            width: min(96vw, 1440px); max-width: none; max-height: 94vh;
             background: #0a0a0a; border: 1px solid #2a2a2a;
             display: flex; flex-direction: column; overflow: hidden;
         }
@@ -200,7 +206,7 @@
         ::-webkit-scrollbar-thumb:hover { background: #666; }
         * { scrollbar-width: thin; scrollbar-color: #444 #0a0a0a; }
 
-        .viewer-body { overflow-y: auto; flex: 0 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(90vh - 78px); }
+        .viewer-body { overflow-y: auto; flex: 0 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(94vh - 78px); }
 
         /* ── Post styling ── */
         .v3rm-post { overflow: hidden; border-top: 15px solid #0a0a0a; width: 100%; }
@@ -284,10 +290,83 @@
         .v3rm-post-body pre { margin: 0; }
         .v3rm-post-body pre code { padding: 12px; display: block; overflow-x: auto; background: #050505; font-size: 13px; line-height: 1.5; white-space: pre; }
 
-        .form-row label { font-size: 0.72rem; letter-spacing: 0.2px; white-space: nowrap; }
-        .v3rm-site-title { font-family: 'Rajdhani','Open Sans',sans-serif; font-weight: 700; font-size: 2.6rem; letter-spacing: 2px; color: #fff; text-transform: uppercase; margin-top: 16px; }
+        .form-row label { font-size: 0.74rem; letter-spacing: 0.2px; white-space: nowrap; }
+        .v3rm-site-title { font-family: 'Rajdhani','Open Sans',sans-serif; font-weight: 700; font-size: clamp(2rem, 2.4vw, 2.8rem); letter-spacing: 2px; color: #fff; text-transform: uppercase; margin-top: 8px; }
         .v3rm-title-accent { color: #cd1818; }
-        .v3rm-db-status { font-size: 0.72rem; color: #555; letter-spacing: 0.5px; margin-top: 64px; margin-bottom: 0; }
+        .v3rm-db-status { font-size: 0.72rem; color: #666; letter-spacing: 0.5px; margin-top: 14px; margin-bottom: 0; }
+
+        /* ── Responsive desktop workspace ── */
+        .search-toolbar {
+            background: #0d0d0d;
+            border: 1px solid #242424;
+            padding: 14px;
+            margin-bottom: 14px;
+        }
+        .index-filter-grid {
+            display: grid;
+            grid-template-columns:
+                minmax(220px, 1.45fr)
+                minmax(150px, .9fr)
+                minmax(240px, 1.45fr)
+                minmax(155px, .9fr)
+                minmax(145px, .8fr)
+                minmax(130px, .7fr);
+            gap: 12px;
+            align-items: end;
+            margin: 0;
+        }
+        .fts-filter-grid {
+            display: grid;
+            grid-template-columns: minmax(280px, 2fr) minmax(180px, 1fr) minmax(190px, 1fr) auto minmax(145px, .75fr);
+            gap: 12px;
+            align-items: end;
+            margin: 0;
+        }
+        .index-filter-grid > [class*="col-"],
+        .fts-filter-grid > [class*="col-"] {
+            width: auto;
+            max-width: none;
+            flex: none;
+            padding: 0;
+            margin-bottom: 0 !important;
+        }
+        .index-filter-grid .form-control,
+        .index-filter-grid .filter-select,
+        .fts-filter-grid .form-control,
+        .fts-filter-grid .filter-select,
+        .index-filter-grid .btn,
+        .fts-filter-grid .btn { height: 42px !important; }
+        .index-filter-grid label, .fts-filter-grid label {
+            color: #777 !important;
+            margin-bottom: 5px !important;
+            text-transform: uppercase;
+            letter-spacing: .45px;
+        }
+        .filter-action { align-self: end; }
+
+        @media (min-width: 1450px) {
+            .index-result-col { flex: 0 0 25%; max-width: 25%; }
+        }
+        @media (max-width: 1199.98px) {
+            .archive-shell { width: min(96vw, 1100px); }
+            .index-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .fts-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+        }
+        @media (max-width: 767.98px) {
+            .archive-shell { width: 100%; margin: 0; }
+            .page-box { border-left: 0; border-right: 0; padding: 16px; }
+            .logo-img { max-width: 110px; }
+            .index-filter-grid, .fts-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .filter-keywords { grid-column: span 2; }
+            .viewer-card { width: 100vw; max-height: 100vh; }
+            .viewer-body { max-height: calc(100vh - 78px); }
+        }
+        @media (max-width: 575.98px) {
+            .index-filter-grid, .fts-filter-grid { grid-template-columns: 1fr; }
+            .filter-keywords { grid-column: auto; }
+            .search-toolbar { padding: 10px; }
+            .search-mode-tab { flex: 1; padding: 7px 8px; font-size: .68rem; }
+        }
 
         /* ── FTS load-more ── */
         #fts-load-more-wrap { text-align: center; margin-top: 12px; display: none; }
@@ -308,7 +387,7 @@
         <div id="loading-text" class="text-muted font-weight-bold">Connecting to archive...</div>
     </div>
 
-<div class="container my-5" id="content">
+<div class="archive-shell" id="content">
     <div class="page-box">
 
         <div class="text-center mb-2 logo-container">
@@ -336,10 +415,10 @@
         <div id="panel-index">
             <div class="row justify-content-center mb-2">
                 <div class="col-md-12">
-                    <form action="#" onsubmit="triggerIndexSearch(); return false;">
-                        <div class="form-row align-items-center">
+                    <form action="#" class="search-toolbar" onsubmit="triggerIndexSearch(); return false;">
+                        <div class="form-row index-filter-grid">
                             <div class="col-lg-2 col-md-6 mb-2">
-                                <label class="small font-weight-bold text-muted mb-1 d-block">1. Forum Category Target</label>
+                                <label class="small font-weight-bold text-muted mb-1 d-block">Forum category</label>
                                 <select id="categoryDropdown" class="form-control filter-select">
                                     <option value="" selected>All Categories (Entire Archive)</option>
                                     <optgroup label="Socialising">
@@ -398,19 +477,19 @@
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-6 mb-2">
-                                <label class="small font-weight-bold text-muted mb-1 d-block">2. Search By</label>
+                                <label class="small font-weight-bold text-muted mb-1 d-block">Search field</label>
                                 <select id="searchTarget" class="form-control filter-select">
                                     <option value="title" selected>Thread Title</option>
                                     <option value="author">Author Username</option>
                                     <option value="author_id">Author ID</option>
                                 </select>
                             </div>
-                            <div class="col-lg-2 col-md-12 mb-2">
-                                <label id="inputLabel" class="font-weight-bold text-muted mb-1 d-block" style="font-size:0.72rem;">3. Search Keywords...</label>
+                            <div class="col-lg-2 col-md-12 mb-2 filter-keywords">
+                                <label id="inputLabel" class="font-weight-bold text-muted mb-1 d-block" style="font-size:0.72rem;">Keywords</label>
                                 <input type="text" id="searchInput" class="form-control" placeholder="Type keywords here...">
                             </div>
                             <div class="col-lg-2 col-md-4 mb-2">
-                                <label class="small font-weight-bold text-muted mb-1 d-block">4. Sort Results</label>
+                                <label class="small font-weight-bold text-muted mb-1 d-block">Sort by</label>
                                 <select id="sortBy" class="form-control filter-select">
                                     <option value="relevance" selected>Relevance</option>
                                     <option value="thread_id">Thread ID</option>
@@ -421,14 +500,13 @@
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-4 mb-2">
-                                <label class="small font-weight-bold text-muted mb-1 d-block">5. Order</label>
+                                <label class="small font-weight-bold text-muted mb-1 d-block">Order</label>
                                 <select id="sortOrder" class="form-control filter-select">
                                     <option value="asc" selected>Ascending</option>
                                     <option value="desc">Descending</option>
                                 </select>
                             </div>
-                            <div class="col-lg-2 col-md-4 mb-2">
-                                <label class="small font-weight-bold mb-1 d-block" style="visibility:hidden;">6.</label>
+                            <div class="col-lg-2 col-md-4 mb-2 filter-action">
                                 <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height:calc(1.5em + .75rem + 2px);">Search</button>
                             </div>
                         </div>
@@ -445,9 +523,9 @@
         <!-- FTS / POST CONTENT SEARCH PANEL                                  -->
         <!-- ══════════════════════════════════════════════════════════════════ -->
         <div id="panel-fts" style="display:none;">
-            <form action="#" onsubmit="triggerFtsSearch(); return false;">
-                <div class="form-row align-items-end mb-2">
-                    <div class="col-lg-4 col-md-12 mb-2">
+            <form action="#" class="search-toolbar" onsubmit="triggerFtsSearch(); return false;">
+                <div class="form-row fts-filter-grid">
+                    <div class="col-lg-4 col-md-12 mb-2 filter-keywords">
                         <label class="small font-weight-bold text-muted mb-1 d-block">Post Content Keywords</label>
                         <input type="text" id="ftsInput" class="form-control" placeholder='e.g. exploit bypass OR "remote execution"'>
                     </div>
@@ -471,7 +549,7 @@
                             <label for="ftsOpOnly">Thread starters only</label>
                         </div>
                     </div>
-                    <div class="col-lg-2 col-md-6 mb-2">
+                    <div class="col-lg-2 col-md-6 mb-2 filter-action">
                         <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height:calc(1.5em + .75rem + 2px);">Search Posts</button>
                     </div>
                 </div>
@@ -872,7 +950,7 @@
 
     function buildIndexCard(thread) {
         const wrapper = document.createElement('div');
-        wrapper.className = 'col-md-6 col-lg-4 mb-4';
+        wrapper.className = 'col-md-6 col-lg-4 index-result-col mb-4';
 
         const cats       = thread.categories || [];
         const catLabel   = cats.length > 0 ? cats[cats.length - 1] : null;
@@ -1099,9 +1177,9 @@
             const v = this.value;
             const lbl = document.getElementById('inputLabel');
             const inp = document.getElementById('searchInput');
-            if (v === 'author')    { lbl.innerText = '3. Target Username';  inp.placeholder = 'e.g., moonwalk'; }
-            else if (v === 'author_id') { lbl.innerText = '3. Target Author ID'; inp.placeholder = 'e.g., 7919002'; }
-            else                   { lbl.innerText = '3. Search Keywords...'; inp.placeholder = 'Type keywords here...'; }
+            if (v === 'author')    { lbl.innerText = 'Username';  inp.placeholder = 'e.g., moonwalk'; }
+            else if (v === 'author_id') { lbl.innerText = 'Author ID'; inp.placeholder = 'e.g., 7919002'; }
+            else                   { lbl.innerText = 'Keywords'; inp.placeholder = 'Type keywords here...'; }
         });
 
         try {
