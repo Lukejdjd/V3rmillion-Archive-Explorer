@@ -62,6 +62,12 @@ Start with the single-VM deployment. Add Pages after the site looks correct; it
 is an optimization, not a prerequisite. Cloudflare R2 is not required for this
 setup because the versioned database snapshots fit in GitHub Releases.
 
+> **Local-use note:** The compressed database download is under 1.5 GiB. If you
+> do not need a public site that stays online around the clock, running the
+> archive locally is usually easier than setting up cloud hosting. Allow at
+> least 8 GB of free disk space for the download, decompressed databases, and
+> working room.
+
 ## Run locally with Docker
 
 Requirements:
@@ -262,7 +268,17 @@ filesystem.
 
 ### 1. Create the VM
 
-Create an Always Free eligible Ubuntu Ampere A1 VM in the account's home region. A configuration around 2 OCPUs and 12 GB memory is appropriate when it is shown as Always Free eligible. Allocate enough boot/block storage for the repository, 6.1 GiB of live databases, compressed downloads, Docker images, and temporary upgrades; 40 GB or more is comfortable.
+Create an Always Free eligible Ubuntu Ampere A1 VM in the account's home region.
+[Oracle Cloud Always Free resources](https://docs.oracle.com/en-us/iaas/Content/FreeTier/freetier_topic-Always_Free_Resources.htm)
+include up to 200 GB total of combined boot and block-volume storage in the home
+region. A configuration around 2 OCPUs and 12 GB memory is appropriate when it
+is shown as Always Free eligible. Eligible shapes and spare host capacity may
+not be available in every region when you try to create the VM; try another
+availability domain when Oracle offers one, or run the archive locally instead.
+
+Allocate enough storage for the repository, 6.1 GiB of live databases,
+compressed downloads, Docker images, and temporary upgrades. A 40 GB or larger
+volume is comfortable for this deployment.
 
 Add ingress rules for:
 
