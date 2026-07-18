@@ -72,23 +72,23 @@ Requirements:
 
 ### 1. Obtain the databases
 
-The current databases are attached to the
-[Database Snapshot 2026-07-18](https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/tag/database-2026-07-18)
-GitHub Release.
+Open the repository's [Releases page](https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases)
+and use the newest database snapshot. Copy its release tag and substitute it for
+`<RELEASE_TAG>` in the commands below.
 
 Windows PowerShell:
 
 ```powershell
 winget install Meta.Zstandard
 Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\download_databases.ps1 -BaseUrl "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
+.\scripts\download_databases.ps1 -BaseUrl "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/<RELEASE_TAG>"
 ```
 
 Linux/macOS:
 
 ```bash
 sudo apt-get update && sudo apt-get install -y curl zstd
-sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
+sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/<RELEASE_TAG>"
 ```
 
 The scripts download `SHA256SUMS`, verify both archives, and create:
@@ -292,7 +292,7 @@ Download and decompress the databases directly on the VM:
 
 ```bash
 sudo apt-get install -y curl zstd
-sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
+sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/<RELEASE_TAG>"
 ```
 
 ### 3. Start the production stack
@@ -365,7 +365,7 @@ a versioned restore point. Keep the current release, at least one older release,
 and a separate local copy of the compressed files.
 
 ```text
-database-2026-07-18
+database-<date>
 |-- users.db.zst
 |-- threads.db.zst
 `-- SHA256SUMS
