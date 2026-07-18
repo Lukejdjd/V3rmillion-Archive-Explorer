@@ -20,8 +20,8 @@ for name in users.db threads.db; do
     exit 1
   }
 
-  echo "Compressing $name with Zstandard level 3..."
-  zstd -3 -T0 -f -- "$source_path" -o "$target_path"
+  echo "Compressing $name with Zstandard level 15..."
+  zstd -15 -T0 -f -o "$target_path" -- "$source_path"
   zstd -t -- "$target_path"
 done
 

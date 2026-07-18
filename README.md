@@ -6,15 +6,19 @@ The database files are release artifacts, not Git source files. They are intenti
 
 ## Current database release
 
-| Artifact | Raw size | Zstandard level 3 | SHA-256 of `.zst` |
+| Artifact | Raw size | Zstandard level 15 | SHA-256 of `.zst` |
 |---|---:|---:|---|
-| `users.db` | 114,286,592 bytes | 29,108,497 bytes | `c892230b5b95bca2ab493ec9349bdc1afd61bc6a0498cf7f5dac6a74e00afc76` |
-| `threads.db` | 6,420,652,032 bytes | 1,621,294,322 bytes | `c383b6e95832c8c6abb54ad7fce16b620cd7472b5cb01f45f6def557cc1a62b9` |
+| `users.db` | 114,286,592 bytes | 24,486,464 bytes | `9d3f99d83bb379e99c77eeca944ef7cb318a42905adfbb1ac7561ab727156e09` |
+| `threads.db` | 6,420,652,032 bytes | 1,389,124,620 bytes | `0c83061ab9eab77a5f66d1de6b074e750a952c9dfc80ac0a3edd5a3af5be5bc9` |
 
 Combined size:
 
 - Queryable SQLite databases: 6,534,938,624 bytes (6.09 GiB)
-- Compressed downloads: 1,650,402,819 bytes (1.54 GiB)
+- Compressed downloads: 1,413,611,084 bytes (1.32 GiB)
+
+Level 15 was measured against level 3 on the release machine. It reduced the
+users artifact by 15.88% in 3.1 seconds and the threads artifact by 14.32% in
+69 seconds, saving 236,791,735 bytes overall. Decompression remains lossless.
 
 The current release contains 1,028,900 threads, 6,139,739 posts, and 498,730 users. Both databases passed `PRAGMA integrity_check`, and the FTS row counts match their source tables.
 
@@ -102,7 +106,7 @@ x86-only third-party image and uses the same configuration on ARM64 and x86-64.
 You may leave the profile disabled when previews are not needed; all archive
 search and viewing features remain available.
 
-To regenerate both downloadable database archives at Zstandard level 3 and
+To regenerate both downloadable database archives at Zstandard level 15 and
 verify them before upload, run either:
 
 ```powershell
@@ -199,8 +203,8 @@ Always compress only after parsing, FTS rebuilding, and `VACUUM` have completed.
 
 ```bash
 mkdir -p data/downloads
-zstd -3 -T0 -f data/users.db -o data/downloads/users.db.zst
-zstd -3 -T0 -f data/threads.db -o data/downloads/threads.db.zst
+zstd -15 -T0 -f -o data/downloads/users.db.zst -- data/users.db
+zstd -15 -T0 -f -o data/downloads/threads.db.zst -- data/threads.db
 zstd -t data/downloads/users.db.zst
 zstd -t data/downloads/threads.db.zst
 ```
@@ -232,7 +236,7 @@ R2 is artifact and backup storage, not the live SQLite filesystem. The Oracle VM
 3. Configure `rclone` or the AWS CLI using the R2 credentials.
 4. Upload all three release files.
 
-Rclone is recommended for the 1.62 GB thread artifact because it supports resumable multipart uploads:
+Rclone is recommended for the 1.39 GB thread artifact because it supports resumable multipart uploads:
 
 ```bash
 rclone copy data/downloads/ r2:archive-databases/ --progress
@@ -369,7 +373,7 @@ releases/latest/...
 For an update:
 
 1. Rebuild and validate both databases on a workstation.
-2. Compress them with Zstandard level 3.
+2. Compress them with Zstandard level 15.
 3. Test both streams with `zstd -t` and generate `SHA256SUMS`.
 4. Upload to a new versioned R2 prefix.
 5. Download/decompress on Oracle into a staging directory.
@@ -387,7 +391,7 @@ Do not commit raw or compressed databases to Git. Publish the source code normal
 - `threads.db.zst`
 - `SHA256SUMS`
 
-GitHub currently requires each release asset to be under 2 GiB. The 1.62 GB thread artifact fits, but R2 should remain the canonical mirror because it provides resumable uploads and a stable custom download domain. See [GitHub's release documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+GitHub currently requires each release asset to be under 2 GiB. The 1.39 GB thread artifact fits, but R2 should remain the canonical mirror because it provides resumable uploads and a stable custom download domain. See [GitHub's release documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 After installing and signing in to the GitHub CLI, create a database release:
 
@@ -398,7 +402,7 @@ gh release create database-2026-07-18 \
   data/downloads/threads.db.zst \
   data/downloads/SHA256SUMS \
   --title "Database snapshot 2026-07-18" \
-  --notes "Lossless Zstandard level 3 archive database snapshot. Verify with SHA256SUMS."
+  --notes "Lossless Zstandard level 15 archive database snapshot. Verify with SHA256SUMS."
 ```
 
 Verify that all three assets are attached:

@@ -19,8 +19,8 @@ foreach ($name in $databaseNames) {
         throw "Missing database: $source"
     }
 
-    Write-Host "Compressing $name with Zstandard level 3..."
-    & zstd -3 -T0 -f -- $source -o $target
+    Write-Host "Compressing $name with Zstandard level 15..."
+    & zstd -15 -T0 -f -o $target -- $source
     if ($LASTEXITCODE -ne 0) { throw "zstd failed for $source" }
     & zstd -t -- $target
     if ($LASTEXITCODE -ne 0) { throw "Verification failed for $target" }
@@ -37,4 +37,3 @@ $lines = foreach ($name in $databaseNames) {
 Write-Host "Created and verified both database packages in $OutputDirectory"
 Get-Item -LiteralPath ($databaseNames | ForEach-Object { Join-Path $OutputDirectory "$_.zst" }) |
     Select-Object Name, Length
-
