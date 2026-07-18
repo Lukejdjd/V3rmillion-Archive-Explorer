@@ -429,7 +429,19 @@
         .idx-page-btn:hover { background: #222; }
         .idx-page-btn.active { background: #cd1818; border-color: #cd1818; color: #fff; cursor: default; }
         .idx-page-btn:disabled { background: #0a0a0a; color: #333; cursor: not-allowed; border-color: #1a1a1a; }
-        #index-metrics { font-size: 0.72rem; color: #555; text-align: center; margin-bottom: 8px; display: none; }
+        .search-metrics {
+            width: 100%;
+            min-height: 18px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            margin: 4px 0 12px;
+            padding: 0 16px;
+            color: #666;
+            font-size: 0.72rem;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -565,7 +577,7 @@
                 </div>
             </div>
 
-            <div id="index-metrics"></div>
+            <div id="index-metrics" class="search-metrics"></div>
             <div class="row justify-content-center mb-4" id="results"></div>
             <div id="index-pagination-wrap"></div>
         </div>
@@ -629,7 +641,7 @@
                 </div>
             </form>
             <div style="margin-top:14px;">
-                <div id="fts-metrics" style="font-size:0.72rem;color:#555;margin-bottom:8px;display:none;"></div>
+                <div id="fts-metrics" class="search-metrics"></div>
                 <div id="fts-results"></div>
                 <div id="fts-load-more-wrap">
                     <button class="btn btn-sm" id="fts-load-more-btn"
@@ -989,8 +1001,8 @@
 
             // Metrics
             const metricsEl = document.getElementById('index-metrics');
-            metricsEl.textContent = `Found ${total.toLocaleString()} matching archive record${total === 1 ? '' : 's'} — ${ms} ms`;
-            metricsEl.style.display = 'block';
+            metricsEl.textContent = `${total.toLocaleString()} thread${total === 1 ? '' : 's'} found (${ms} ms)`;
+            metricsEl.style.display = 'flex';
 
             renderIndexPagination(offset, total);
 
@@ -1162,8 +1174,8 @@
             rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
 
             const metricsEl = document.getElementById('fts-metrics');
-            metricsEl.textContent = `Showing ${ftsTotalShown} post(s) — loaded in ${ms} ms`;
-            metricsEl.style.display = 'block';
+            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown (${ms} ms)`;
+            metricsEl.style.display = 'flex';
             document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
 
         } catch (err) {
