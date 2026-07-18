@@ -75,7 +75,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def proxy_to_iframely(self):
         target_url = f"{IFRAMELY_BACKEND}{self.path}"
-        print(f"🔗 Proxying to Iframely: {target_url}")
+        print(f"Proxying to Iframely: {target_url}")
         try:
             req = urllib.request.Request(target_url)
             req.add_header('User-Agent', 'Mozilla/5.0 Archive-Proxy')
@@ -89,12 +89,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(data)
         except urllib.error.HTTPError as e:
             error_data = e.read().decode('utf-8', errors='ignore')
-            print(f"❌ Iframely Container returned HTTP {e.code}: {error_data}")
+            print(f"Iframely container returned HTTP {e.code}: {error_data}")
             self.send_response(e.code)
             self.end_headers()
             self.wfile.write(error_data.encode('utf-8'))
         except Exception as e:
-            print(f"❌ Proxy generic system crash: {str(e)}")
+            print(f"Proxy error: {str(e)}")
             self.send_response(500)
             self.end_headers()
             self.wfile.write(f"Proxy error: {str(e)}".encode('utf-8'))
@@ -250,7 +250,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         cur.execute(sql, params)
                         rows = [dict(r) for r in cur.fetchall()]
                     except Exception as db_err:
-                        print(f"⚠️ FTS search_posts failed ({db_err}), falling back to LIKE.")
+                        print(f"FTS search_posts failed ({db_err}), falling back to LIKE.")
 
                     if not rows:
                         fb_sql = (
@@ -284,7 +284,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         cur.execute(sql, params)
                         rows = [dict(r) for r in cur.fetchall()]
                     except Exception as db_err:
-                        print(f"⚠️ FTS username lookup failed ({db_err}), falling back.")
+                        print(f"FTS username lookup failed ({db_err}), falling back.")
                         sql = (
                             f"SELECT {select_fields} FROM posts p "
                             f"LEFT JOIN threads t ON t.thread_id = p.thread_id "
@@ -748,18 +748,18 @@ def run_http_server():
         httpd.serve_forever()
 
 def start_iframely():
-    print("🐳 Starting Iframely...")
+    print("Starting Iframely...")
     subprocess.run(["docker", "compose", "up", "-d", "iframely"], check=True)
-    print("✅ Iframely running on http://localhost:8061")
+    print("Iframely running on http://localhost:8061")
 
 def stop_iframely():
-    print("\n🐳 Stopping Iframely...")
+    print("\nStopping Iframely...")
     subprocess.run(["docker", "compose", "down", "iframely"])
 
 if __name__ == "__main__":
     if MANAGE_IFRAMELY:
         start_iframely()
-    print(f"🌐 Archive running on http://{HOST}:{PORT}/static/search.html")
+    print(f"Archive running on http://{HOST}:{PORT}/static/search.html")
     print("   Press Ctrl+C to stop everything\n")
 
     thread = threading.Thread(target=run_http_server, daemon=True)
@@ -770,7 +770,7 @@ if __name__ == "__main__":
     def shutdown(sig, frame):
         if MANAGE_IFRAMELY:
             stop_iframely()
-        print("👋 Bye")
+        print("Bye")
         stop_event.set()
 
     signal.signal(signal.SIGINT, shutdown)
