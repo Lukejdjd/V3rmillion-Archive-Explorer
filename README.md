@@ -4,6 +4,12 @@ A read-only web interface for searching archived threads, posts, and user profil
 
 The database files are release artifacts, not Git source files. They are intentionally excluded by `.gitignore`.
 
+## Source archives
+
+To rebuild the databases yourself, download `users.zip` and `threads.zip` from
+the [V3rmillion archive on Internet Archive](https://archive.org/download/v3rmillion),
+then place both files in the `data/` directory before running the parsers.
+
 ## Current database release
 
 | Artifact | Raw size | Zstandard level 15 | SHA-256 of `.zst` |
@@ -171,7 +177,9 @@ Supported server environment variables:
 
 ## Rebuild the databases from source archives
 
-This is needed only by dataset maintainers. Put `users.zip` and `threads.zip` in `data/`, create a virtual environment, and install parser dependencies:
+This is needed only by dataset maintainers. After downloading `users.zip` and
+`threads.zip` as described above, create a virtual environment and install the
+parser dependencies:
 
 ```bash
 python -m venv .venv
@@ -463,3 +471,8 @@ sqlite3 data/threads.db "PRAGMA integrity_check;"
 ```
 
 Both commands should print `ok`.
+
+## Credits
+
+[64kun/V3rmillion-Archive-Explorer](https://github.com/64kun/V3rmillion-Archive-Explorer)
+provided a great foundation for understanding how to parse the archived data.
