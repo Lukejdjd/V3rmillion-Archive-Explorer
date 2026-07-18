@@ -151,6 +151,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 conn = sqlite3.connect(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
+                cur.execute(
+                    "SELECT sql FROM sqlite_master WHERE name='fts_posts'"
+                )
+                fts_posts_schema = cur.fetchone()
+                fts_posts_external = bool(
+                    fts_posts_schema
+                    and "content='posts'" in fts_posts_schema[0]
+                )
+                fts_posts_join = (
+                    "p.rowid = f.rowid" if fts_posts_external
+                    else "p.post_id = f.post_id"
+                )
 
                 # Attach users.db if it exists to query structural user data
                 has_users_db = os.path.exists(users_db)
@@ -209,7 +221,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     try:
                         sql = (
                             f"SELECT {select_fields} FROM fts_posts f "
-                            "JOIN posts p ON p.post_id = f.post_id "
+                            f"JOIN posts p ON {fts_posts_join} "
                             "LEFT JOIN threads t ON t.thread_id = p.thread_id "
                             f"{left_join_user} WHERE {fts_where}"
                         ) + extra_sql
@@ -247,7 +259,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     try:
                         sql = (
                             f"SELECT {select_fields} FROM fts_posts f "
-                            "JOIN posts p ON p.post_id = f.post_id "
+                            f"JOIN posts p ON {fts_posts_join} "
                             "LEFT JOIN threads t ON t.thread_id = p.thread_id "
                             f"{left_join_user} WHERE f.author_username = ?"
                         ) + extra_sql + order_clause() + " LIMIT ? OFFSET ?"
@@ -349,6 +361,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return send_json({'error': 'user not found'}, 404)
 
                 user = dict(row)
+                user.pop('past_usernames_search', None)
                 user['awards'] = _parse_awards_field(user.get('awards'))
                 if 'user_group' in user:
                     user['user_group'] = _parse_json_field(user.get('user_group'))
@@ -412,8 +425,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
 
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fts_threads'")
-                has_fts = cur.fetchone() is not None
+                cur.execute(
+                    "SELECT sql FROM sqlite_master WHERE name='fts_threads'"
+                )
+                fts_schema = cur.fetchone()
+                has_fts = fts_schema is not None
+                fts_join = (
+                    "t.rowid = f.rowid"
+                    if fts_schema and "content='threads'" in fts_schema[0]
+                    else "t.thread_id = f.thread_id"
+                )
 
                 dir_sql = 'ASC' if order == 'asc' else 'DESC'
 
@@ -428,7 +449,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         "SELECT t.thread_id, t.title, t.author_username, t.author_id, "
                         "t.categories, t.date, t.reply_count, "
                         "COALESCE(MAX(CAST(NULLIF(p.likes, '') AS INTEGER)), 0) AS like_count "
-                        "FROM fts_threads f JOIN threads t ON t.thread_id = f.thread_id "
+                        f"FROM fts_threads f JOIN threads t ON {fts_join} "
                         "LEFT JOIN posts p ON p.thread_id = t.thread_id "
                         "WHERE fts_threads MATCH ?"
                     )
@@ -555,8 +576,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
 
-                cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fts_users'")
-                has_fts = cur.fetchone() is not None
+                cur.execute(
+                    "SELECT sql FROM sqlite_master WHERE name='fts_users'"
+                )
+                fts_schema = cur.fetchone()
+                has_fts = fts_schema is not None
+                fts_join = (
+                    "u.rowid = f.rowid"
+                    if fts_schema and "content='users'" in fts_schema[0]
+                    else "u.user_id = f.user_id"
+                )
 
                 dir_sql = 'ASC' if order == 'asc' else 'DESC'
 
@@ -571,7 +600,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         "SELECT u.user_id, u.username, u.user_title, u.user_rank, "
                         "u.reputation, u.post_count, u.thread_count, u.user_stars, "
                         "u.user_group, u.joined, u.awards, u.past_usernames "
-                        "FROM fts_users f JOIN users u ON u.user_id = f.user_id "
+                        f"FROM fts_users f JOIN users u ON {fts_join} "
                         "WHERE fts_users MATCH ?"
                     )
                     params.append(sanitized_q)
