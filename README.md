@@ -4,6 +4,11 @@ A read-only web interface for searching archived threads, posts, and user profil
 
 The database files are release artifacts, not Git source files. They are intentionally excluded by `.gitignore`.
 
+## Credits
+
+[64kun/V3rmillion-Archive-Explorer](https://github.com/64kun/V3rmillion-Archive-Explorer)
+provided a great foundation for understanding how to parse the archived data.
+
 ## Source archives
 
 To rebuild the databases yourself, download `users.zip` and `threads.zip` from
@@ -471,8 +476,3 @@ sqlite3 data/threads.db "PRAGMA integrity_check;"
 ```
 
 Both commands should print `ok`.
-
-## Credits
-
-[64kun/V3rmillion-Archive-Explorer](https://github.com/64kun/V3rmillion-Archive-Explorer)
-provided a great foundation for understanding how to parse the archived data.
