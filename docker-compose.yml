@@ -1,8 +1,26 @@
 services:
-  iframely:
-    image: jolt/iframely:latest
-    ports:
-      - "8061:8061"
+  archive:
+    build:
+      context: .
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8000
+      ARCHIVE_DATA_DIR: /app/data
+      MANAGE_IFRAMELY: "0"
+      IFRAMELY_BACKEND: http://iframely:8061
     volumes:
-      - ./iframely/config.local.cjs:/iframely/config.local.cjs:ro
+      - ./data:/app/data:ro
+    ports:
+      - "127.0.0.1:${APP_PORT:-8000}:8000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+
+  iframely:
+    build:
+      context: ./iframely
+    profiles: ["embeds"]
+    ports:
+      - "127.0.0.1:${IFRAMELY_PORT:-8061}:8061"
     restart: unless-stopped

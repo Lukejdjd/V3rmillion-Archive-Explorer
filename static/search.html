@@ -620,7 +620,9 @@
     // ════════════════════════════════════════════════════════════════════════
     async function fetchAndRenderThread(threadId, jumpToPostId = null) {
         try {
-            const res  = await fetch(`/api/thread?thread_id=${encodeURIComponent(threadId)}`);
+            const params = new URLSearchParams({ thread_id: threadId, limit: 50, offset: 0 });
+            if (jumpToPostId) params.set('post_id', jumpToPostId);
+            const res  = await fetch(`/api/thread?${params}`);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
@@ -1705,16 +1707,13 @@
         const categoryBreadcrumbs = sanitizedCategories.length > 0 ? sanitizedCategories.join(' » ') : '';
         // ──────────────────────────────────
 
-        const posts         = data.posts || [];
-        const allTopLevel   = posts.map((post, idx) => ({ post, isOP: idx === 0 }));
-        const totalPosts    = allTopLevel.length;
+        const pageCache     = new Map();
+        let pageOffset      = Number(data.offset || 0);
+        let pagePosts       = data.posts || [];
+        const totalPosts    = Number(data.total ?? pagePosts.length);
         const totalPages    = Math.max(1, Math.ceil(totalPosts / POSTS_PER_PAGE));
-        let currentModalPage = 1;
-
-        if (jumpToPostId) {
-            const idx = allTopLevel.findIndex(e => String(e.post.post_id) === String(jumpToPostId));
-            if (idx !== -1) currentModalPage = Math.ceil((idx + 1) / POSTS_PER_PAGE);
-        }
+        let currentModalPage = Math.floor(pageOffset / POSTS_PER_PAGE) + 1;
+        pageCache.set(currentModalPage, pagePosts);
 
         const overlay = document.createElement('div');
         overlay.className = 'viewer-overlay';
@@ -1735,6 +1734,21 @@
             </div>`;
         document.body.appendChild(overlay);
 
+        async function loadModalPage(page) {
+            if (!pageCache.has(page)) {
+                const offset = (page - 1) * POSTS_PER_PAGE;
+                const params = new URLSearchParams({ thread_id: id, limit: POSTS_PER_PAGE, offset });
+                const res = await fetch(`/api/thread?${params}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const pageData = await res.json();
+                if (pageData.error) throw new Error(pageData.error);
+                pageCache.set(page, pageData.posts || []);
+            }
+            pageOffset = (page - 1) * POSTS_PER_PAGE;
+            pagePosts = pageCache.get(page);
+            renderModalPage(page);
+        }
+
         function renderModalPage(page) {
             currentModalPage = page;
             postCounter = 0;
@@ -1742,8 +1756,10 @@
             viewerBody.innerHTML = '';
             viewerBody.scrollTop = 0;
 
-            const start = (page - 1) * POSTS_PER_PAGE;
-            const slice = allTopLevel.slice(start, start + POSTS_PER_PAGE);
+            const slice = pagePosts.map((post, idx) => ({
+                post,
+                isOP: Number(post.is_op) === 1 || pageOffset + idx === 0,
+            }));
 
             if (!slice.length) {
                 viewerBody.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No posts found for this thread.</p>';
@@ -1758,8 +1774,8 @@
             if (jumpToPostId && page === currentModalPage) {
                 setTimeout(() => {
                     const allPostEls = viewerBody.querySelectorAll('.v3rm-post');
-                    const localIdx   = allTopLevel.slice(start, start + POSTS_PER_PAGE)
-                        .findIndex(e => String(e.post.post_id) === String(jumpToPostId));
+                    const localIdx = pagePosts
+                        .findIndex(post => String(post.post_id) === String(jumpToPostId));
                     if (localIdx !== -1 && allPostEls[localIdx]) {
                         allPostEls[localIdx].scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }
@@ -1788,9 +1804,13 @@
             bar.innerHTML = html;
         }
 
-        window.modalGoTo = (page) => {
+        window.modalGoTo = async (page) => {
             if (page < 1 || page > totalPages) return;
-            renderModalPage(page);
+            try {
+                await loadModalPage(page);
+            } catch (err) {
+                alert('Error loading thread page: ' + err.message);
+            }
         };
 
         renderModalPage(currentModalPage);

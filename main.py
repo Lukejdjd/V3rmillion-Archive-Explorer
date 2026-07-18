@@ -10,10 +10,16 @@ import urllib.error
 import json
 
 # ── Config ────────────────────────────────────────────────────────────────────
-HOST = "localhost"
-PORT = 8000
+HOST = os.environ.get("HOST", "localhost")
+PORT = int(os.environ.get("PORT", "8000"))
 SERVE_DIR = os.path.dirname(os.path.abspath(__file__))
-IFRAMELY_BACKEND = "http://localhost:8061"
+DATA_DIR = os.environ.get("ARCHIVE_DATA_DIR", os.path.join(SERVE_DIR, "data"))
+IFRAMELY_BACKEND = os.environ.get(
+    "IFRAMELY_BACKEND", "http://localhost:8061"
+)
+MANAGE_IFRAMELY = os.environ.get("MANAGE_IFRAMELY", "1").lower() not in {
+    "0", "false", "no"
+}
 
 # ── Handler ───────────────────────────────────────────────────────────────────
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -100,10 +106,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         path = parsed.path
         qs = urllib.parse.parse_qs(parsed.query)
 
-        db_dir = os.path.dirname(os.path.abspath(__file__))
-        data_dir = os.path.join(db_dir, 'data')
+        data_dir = DATA_DIR
         threads_db = os.path.join(data_dir, 'threads.db')
         users_db = os.path.join(data_dir, 'users.db')
+
+        def connect_archive(path):
+            absolute = os.path.abspath(path).replace('\\', '/')
+            uri_path = urllib.parse.quote(absolute, safe='/:')
+            conn = sqlite3.connect(
+                f"file:{uri_path}?mode=ro&immutable=1",
+                uri=True,
+            )
+            conn.execute("PRAGMA query_only=ON")
+            return conn
 
         def send_json(obj, code=200):
             body = json.dumps(obj, ensure_ascii=False).encode('utf-8')
@@ -127,6 +142,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try: return json.loads(val)
             except: return None
 
+        def _bounded_int(name, default, minimum=0, maximum=1000):
+            try:
+                value = int((qs.get(name) or [default])[0])
+            except (TypeError, ValueError):
+                value = default
+            return max(minimum, min(value, maximum))
+
         try:
             # ── /api/search_posts ────────────────────────────────────────────
             if path == '/api/search_posts':
@@ -136,8 +158,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 start_ts  = (qs.get('start_ts')   or [None])[0]
                 end_ts    = (qs.get('end_ts')      or [None])[0]
                 sort      = (qs.get('sort')        or ['desc'])[0]
-                offset    = int((qs.get('offset') or [0])[0])
-                limit     = int((qs.get('limit')  or [50])[0])
+                offset    = _bounded_int('offset', 0, 0, 100000000)
+                limit     = _bounded_int('limit', 50, 1, 100)
                 op_only   = (qs.get('op_only')    or ['0'])[0] == '1'
 
                 try: start_ts = int(start_ts) if start_ts not in (None, '') else None
@@ -148,7 +170,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not os.path.exists(threads_db):
                     return send_json({'error': 'threads.db not found'}, 500)
 
-                conn = sqlite3.connect(threads_db)
+                conn = connect_archive(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute(
@@ -163,11 +185,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "p.rowid = f.rowid" if fts_posts_external
                     else "p.post_id = f.post_id"
                 )
-
-                # Attach users.db if it exists to query structural user data
-                has_users_db = os.path.exists(users_db)
-                if has_users_db:
-                    cur.execute("ATTACH DATABASE ? AS u_db", (users_db,))
 
                 # Use post-time user fields stored on the post row itself.
                 # Do NOT join users.db for user_title/user_rank/user_stars/user_group —
@@ -307,19 +324,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return send_json({'error': 'threads.db not found'}, 500)
 
                 op_only = (qs.get('op_only') or ['0'])[0] == '1'
-                offset  = int((qs.get('offset') or [0])[0])
-                limit   = int((qs.get('limit')  or [50])[0])
+                offset  = _bounded_int('offset', 0, 0, 100000000)
+                limit   = _bounded_int('limit', 50, 1, 100)
 
-                conn = sqlite3.connect(threads_db)
+                conn = connect_archive(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
 
-                has_users_db = os.path.exists(users_db)
                 # Use post-time user fields stored on the post row itself.
                 select_fields = "p.*, t.title AS thread_title"
                 left_join_user = ""
-                if has_users_db:
-                    cur.execute("ATTACH DATABASE ? AS u_db", (users_db,))
 
                 op_filter = "AND p.is_op = 1" if op_only else ""
                 sql = f"""SELECT {select_fields} FROM posts p
@@ -346,7 +360,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if not os.path.exists(users_db):
                     return send_json({'error': 'users.db not found'}, 500)
 
-                conn = sqlite3.connect(users_db)
+                conn = connect_archive(users_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute('PRAGMA table_info(users)')
@@ -372,12 +386,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             # ── /api/thread ──────────────────────────────────────────────────
             if path == '/api/thread':
                 thread_id = (qs.get('thread_id') or [''])[0]
+                requested_limit = (qs.get('limit') or [None])[0]
+                limit = _bounded_int('limit', 50, 1, 100) if requested_limit is not None else None
+                offset = _bounded_int('offset', 0, 0, 100000000)
+                jump_post_id = (qs.get('post_id') or [None])[0]
                 if not thread_id:
                     return send_json({'error': 'thread_id required'}, 400)
                 if not os.path.exists(threads_db):
                     return send_json({'error': 'threads.db not found'}, 500)
 
-                conn = sqlite3.connect(threads_db)
+                conn = connect_archive(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute('SELECT * FROM threads WHERE thread_id = ?', (thread_id,))
@@ -387,11 +405,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     return send_json({'error': 'not found'}, 404)
 
                 # Use post-time user fields stored on the post row itself.
-                has_users_db = os.path.exists(users_db)
                 select_fields = "p.*"
                 left_join_user = ""
-                if has_users_db:
-                    cur.execute("ATTACH DATABASE ? AS u_db", (users_db,))
+
+                cur.execute('SELECT COUNT(*) FROM posts WHERE thread_id = ?', (thread_id,))
+                total_posts = cur.fetchone()[0]
+
+                if limit is not None and jump_post_id:
+                    cur.execute(
+                        """SELECT row_number FROM (
+                               SELECT post_id, ROW_NUMBER() OVER (
+                                   ORDER BY CASE WHEN unix_time IS NULL OR unix_time = '' THEN 1 ELSE 0 END,
+                                            CAST(unix_time AS INTEGER) ASC, post_number ASC
+                               ) AS row_number
+                               FROM posts WHERE thread_id = ?
+                           ) WHERE post_id = ?""",
+                        (thread_id, jump_post_id),
+                    )
+                    jump_row = cur.fetchone()
+                    if jump_row:
+                        offset = ((jump_row[0] - 1) // limit) * limit
 
                 sql = f"""SELECT {select_fields} FROM posts p
                           {left_join_user}
@@ -399,14 +432,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                           ORDER BY CASE WHEN unix_time IS NULL OR unix_time = "" THEN 1 ELSE 0 END,
                           CAST(unix_time AS INTEGER) ASC, post_number ASC"""
 
-                cur.execute(sql, (thread_id,))
+                params = [thread_id]
+                if limit is not None:
+                    sql += " LIMIT ? OFFSET ?"
+                    params.extend([limit, offset])
+                cur.execute(sql, params)
                 posts = [dict(r) for r in cur.fetchall()]
                 for p in posts:
                     p['awards'] = _parse_awards_field(p.get('awards'))
                     if 'user_group' in p:
                         p['user_group'] = _parse_json_field(p.get('user_group'))
                 conn.close()
-                return send_json({'thread': dict(thread), 'posts': posts})
+                return send_json({
+                    'thread': dict(thread),
+                    'posts': posts,
+                    'total': total_posts,
+                    'offset': offset,
+                    'limit': limit or total_posts,
+                })
 
             # ── /api/search_threads ──────────────────────────────────────────
             if path == '/api/search_threads':
@@ -415,13 +458,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 author  = (qs.get('author') or [''])[0].strip()
                 sort    = (qs.get('sort')   or ['relevance'])[0]
                 order   = (qs.get('order')  or ['desc'])[0]
-                offset  = int((qs.get('offset') or [0])[0])
-                limit   = min(int((qs.get('limit') or [24])[0]), 100)
+                offset  = _bounded_int('offset', 0, 0, 100000000)
+                limit   = _bounded_int('limit', 24, 1, 100)
 
                 if not os.path.exists(threads_db):
                     return send_json({'error': 'threads.db not found'}, 500)
 
-                conn = sqlite3.connect(threads_db)
+                conn = connect_archive(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
 
@@ -442,23 +485,32 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     sort = 'thread_id'
 
                 params = []
+                sort_by_likes = sort == 'likes'
 
                 if has_fts and q:
                     sanitized_q = '"' + q.replace('"', '""') + '"'
+                    like_select = (
+                        "COALESCE(MAX(CAST(NULLIF(p.likes, '') AS INTEGER)), 0)"
+                        if sort_by_likes else "0"
+                    )
                     base = (
                         "SELECT t.thread_id, t.title, t.author_username, t.author_id, "
-                        "t.categories, t.date, t.reply_count, "
-                        "COALESCE(MAX(CAST(NULLIF(p.likes, '') AS INTEGER)), 0) AS like_count "
+                        "t.categories, t.date, t.reply_count, " + like_select + " AS like_count "
                         f"FROM fts_threads f JOIN threads t ON {fts_join} "
-                        "LEFT JOIN posts p ON p.thread_id = t.thread_id "
-                        "WHERE fts_threads MATCH ?"
                     )
+                    if sort_by_likes:
+                        base += "LEFT JOIN posts p ON p.thread_id = t.thread_id "
+                    base += "WHERE fts_threads MATCH ?"
                     params.append(sanitized_q)
                 else:
+                    like_select = (
+                        "(SELECT COALESCE(MAX(CAST(NULLIF(p.likes, '') AS INTEGER)), 0) "
+                        "FROM posts p WHERE p.thread_id = threads.thread_id)"
+                        if sort_by_likes else "0"
+                    )
                     base = (
                         "SELECT thread_id, title, author_username, author_id, "
-                        "categories, date, reply_count, "
-                        "(SELECT COALESCE(MAX(CAST(NULLIF(p.likes, '') AS INTEGER)), 0) FROM posts p WHERE p.thread_id = threads.thread_id) AS like_count "
+                        "categories, date, reply_count, " + like_select + " AS like_count "
                         "FROM threads WHERE 1=1"
                     )
 
@@ -471,8 +523,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     base += f" AND {col} = ?"
                     params.append(author)
 
-                if has_fts and q:
+                if has_fts and q and sort_by_likes:
                     base += " GROUP BY t.thread_id"
+
+                count_base = base
 
                 if sort == 'relevance' and q and has_fts:
                     pass
@@ -487,7 +541,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 elif sort == 'likes':
                     base += f" ORDER BY like_count {dir_sql}"
 
-                count_sql = f"SELECT COUNT(*) FROM ({base})"
+                count_sql = f"SELECT COUNT(*) FROM ({count_base})"
                 try:
                     cur.execute(count_sql, params)
                     total = cur.fetchone()[0]
@@ -504,6 +558,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     conn.close()
                     return send_json({'error': str(e)}, 500)
 
+                like_counts = {}
+                if rows and not sort_by_likes:
+                    thread_ids = [str(r['thread_id']) for r in rows]
+                    placeholders = ','.join('?' for _ in thread_ids)
+                    cur.execute(
+                        "SELECT thread_id, COALESCE(MAX(CAST(NULLIF(likes, '') AS INTEGER)), 0) "
+                        f"FROM posts WHERE thread_id IN ({placeholders}) GROUP BY thread_id",
+                        thread_ids,
+                    )
+                    like_counts = {str(row[0]): row[1] for row in cur.fetchall()}
+
                 out = []
                 for r in rows:
                     try: cats = json.loads(r['categories']) if r['categories'] else []
@@ -516,7 +581,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         'categories':      cats,
                         'date':            r['date'] or '',
                         'reply_count':     r['reply_count'],
-                        'like_count':      r['like_count'],
+                        'like_count':      like_counts.get(str(r['thread_id']), r['like_count']),
                     })
 
                 conn.close()
@@ -526,7 +591,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if path == '/api/titles':
                 if not os.path.exists(threads_db):
                     return send_json({'error': 'threads.db not found'}, 500)
-                conn = sqlite3.connect(threads_db)
+                conn = connect_archive(threads_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
                 cur.execute('SELECT COUNT(*) as cnt FROM threads')
@@ -566,13 +631,13 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 q      = (qs.get('q')      or [''])[0].strip()
                 sort   = (qs.get('sort')   or ['relevance'])[0]
                 order  = (qs.get('order')  or ['desc'])[0]
-                offset = int((qs.get('offset') or [0])[0])
-                limit  = min(int((qs.get('limit') or [24])[0]), 100)
+                offset = _bounded_int('offset', 0, 0, 100000000)
+                limit  = _bounded_int('limit', 24, 1, 100)
 
                 if not os.path.exists(users_db):
                     return send_json({'error': 'users.db not found'}, 500)
 
-                conn = sqlite3.connect(users_db)
+                conn = connect_archive(users_db)
                 conn.row_factory = sqlite3.Row
                 cur = conn.cursor()
 
@@ -654,8 +719,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         'user_stars':     r['user_stars'] or 0,
                         'user_group':     _parse_json_field(r['user_group']),
                         'joined':         r['joined'] or '',
-                        'awards':         _parse_awards_field(r.get('awards')),
-                        'past_usernames': _parse_json_field(r.get('past_usernames')) or [],
+                        'awards':         _parse_awards_field(r['awards']),
+                        'past_usernames': _parse_json_field(r['past_usernames']) or [],
                     })
 
                 conn.close()
@@ -677,8 +742,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 # ── Startup ───────────────────────────────────────────────────────────────────
 def run_http_server():
-    socketserver.TCPServer.allow_reuse_address = True
-    with socketserver.TCPServer((HOST, PORT), Handler) as httpd:
+    socketserver.ThreadingTCPServer.allow_reuse_address = True
+    socketserver.ThreadingTCPServer.daemon_threads = True
+    with socketserver.ThreadingTCPServer((HOST, PORT), Handler) as httpd:
         httpd.serve_forever()
 
 def start_iframely():
@@ -691,7 +757,8 @@ def stop_iframely():
     subprocess.run(["docker", "compose", "down", "iframely"])
 
 if __name__ == "__main__":
-    start_iframely()
+    if MANAGE_IFRAMELY:
+        start_iframely()
     print(f"🌐 Archive running on http://{HOST}:{PORT}/static/search.html")
     print("   Press Ctrl+C to stop everything\n")
 
@@ -701,7 +768,8 @@ if __name__ == "__main__":
     stop_event = threading.Event()
 
     def shutdown(sig, frame):
-        stop_iframely()
+        if MANAGE_IFRAMELY:
+            stop_iframely()
         print("👋 Bye")
         stop_event.set()
 
