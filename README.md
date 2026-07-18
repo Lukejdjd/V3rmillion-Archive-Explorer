@@ -74,39 +74,24 @@ Requirements:
 
 The current databases are attached to the
 [Database Snapshot 2026-07-18](https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/tag/database-2026-07-18)
-GitHub Release. While the repository is private, install the GitHub CLI and sign
-in before downloading the assets.
+GitHub Release.
 
-Download the authenticated release assets on Windows, Linux, or macOS:
-
-```bash
-gh auth login
-gh release download database-2026-07-18 \
-  --repo Lukejdjd/V3rmillion-Archive-Explorer \
-  --pattern "*.zst" \
-  --pattern "SHA256SUMS" \
-  --dir data/downloads
-```
-
-Windows PowerShell decompression:
+Windows PowerShell:
 
 ```powershell
 winget install Meta.Zstandard
-zstd -t data\downloads\users.db.zst data\downloads\threads.db.zst
-zstd -d -f -o data\users.db data\downloads\users.db.zst
-zstd -d -f -o data\threads.db data\downloads\threads.db.zst
+Set-ExecutionPolicy -Scope Process Bypass
+.\scripts\download_databases.ps1 -BaseUrl "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
 ```
 
-Linux/macOS decompression:
+Linux/macOS:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y zstd
-(cd data/downloads && sha256sum -c SHA256SUMS)
-zstd -d -f -o data/users.db data/downloads/users.db.zst
-zstd -d -f -o data/threads.db data/downloads/threads.db.zst
+sudo apt-get update && sudo apt-get install -y curl zstd
+sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
 ```
 
-These commands verify the archives and create:
+The scripts download `SHA256SUMS`, verify both archives, and create:
 
 ```text
 data/users.db
@@ -306,21 +291,9 @@ SITE_DOMAIN=api.example.com
 Download and decompress the databases directly on the VM:
 
 ```bash
-sudo apt-get install -y gh zstd
-gh auth login
-mkdir -p data/downloads
-gh release download database-2026-07-18 \
-  --repo Lukejdjd/V3rmillion-Archive-Explorer \
-  --pattern "*.zst" \
-  --pattern "SHA256SUMS" \
-  --dir data/downloads
-(cd data/downloads && sha256sum -c SHA256SUMS)
-zstd -d -f -o data/users.db data/downloads/users.db.zst
-zstd -d -f -o data/threads.db data/downloads/threads.db.zst
+sudo apt-get install -y curl zstd
+sh scripts/download_databases.sh "https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/download/database-2026-07-18"
 ```
-
-The GitHub login is required only while the repository is private. Never put a
-GitHub token in the repository, frontend JavaScript, or a Docker image.
 
 ### 3. Start the production stack
 
@@ -442,10 +415,8 @@ Verify that all three assets are attached:
 gh release view database-YYYY-MM-DD
 ```
 
-People with access to the private repository can install databases using the
-authenticated `gh release download` command shown above. If the repository is
-made public later, the included download scripts can use the release's direct
-base URL without authentication.
+Users can install the databases directly from the release with the download
+scripts shown above.
 
 Do not use Git LFS or commit the database files themselves. A release asset is
 kept outside Git history, so code clones remain small. If `threads.db.zst`
