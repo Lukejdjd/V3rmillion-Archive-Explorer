@@ -277,10 +277,61 @@
             background: #1c1c1c; border-left: 4px solid #555; border-radius: 2px;
             font-size: 12px; color: #aaa;
         }
+        .v3rm-post-body blockquote blockquote,
+        .v3rm-post-body .v3rm-quote .v3rm-quote {
+            margin: 8px 0 8px 10px;
+            background: #181818;
+            border-left-color: #3b3b3b;
+        }
         .v3rm-post-body blockquote cite, .v3rm-post-body .v3rm-quote-author {
             display: block; font-style: normal; font-weight: 700;
             color: #888; font-size: 11px; margin-bottom: 5px;
         }
+        .v3rm-quote-shell {
+            position: relative;
+            margin: 10px 0;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .v3rm-quote-shell > blockquote.v3rm-quote {
+            margin: 0;
+        }
+        .v3rm-quote-shell > blockquote.v3rm-quote.quote-collapsed {
+            max-height: var(--quote-preview-height, 300px);
+            overflow: hidden;
+        }
+        .v3rm-quote-shell.expanded > blockquote.v3rm-quote {
+            max-height: none;
+            overflow: visible;
+        }
+        .v3rm-quote-fade {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 30px;
+            height: 52px;
+            pointer-events: none;
+            background: linear-gradient(to bottom, rgba(28,28,28,0), #1c1c1c 88%);
+        }
+        .v3rm-quote-shell.expanded > .v3rm-quote-fade { display: none; }
+        .v3rm-quote-toggle {
+            width: 100%;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: #171717;
+            border: 0;
+            border-top: 1px solid #2c2c2c;
+            color: #999;
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .25px;
+            cursor: pointer;
+        }
+        .v3rm-quote-toggle:hover { background: #202020; color: #fff; }
+        .v3rm-quote-toggle i { color: #cd1818; }
 
         /* ── Code blocks from stored HTML ── */
         .v3rm-post-body .v3rm-code-container, .v3rm-post-body .codeblock {
@@ -1675,6 +1726,59 @@
                     prev.nodeValue = prev.nodeValue.replace(/[ \t\u00a0]*\n[ \t\u00a0]*$/g, '\n');
                 }
             }
+        });
+
+        // ------------------------------------------------------------------
+        // 7. Collapse oversized and nested quote chains without discarding
+        //    any archived content. Nested generations receive a shorter
+        //    preview so quote pyramids do not dominate the current reply.
+        // ------------------------------------------------------------------
+        const quotes = [...container.querySelectorAll('blockquote.v3rm-quote')];
+        const quoteDepth = new Map(quotes.map(quote => {
+            let depth = 0;
+            let parent = quote.parentElement;
+            while (parent && parent !== container) {
+                if (parent.matches('blockquote.v3rm-quote')) depth++;
+                parent = parent.parentElement;
+            }
+            return [quote, depth];
+        }));
+
+        [...quotes].sort((a, b) => quoteDepth.get(b) - quoteDepth.get(a)).forEach(quote => {
+            const depth = quoteDepth.get(quote) || 0;
+            const previewHeight = depth > 0 ? 120 : 300;
+            const containsHeavyContent = [...quote.querySelectorAll(
+                'img, iframe, .v3rm-code-container, .v3rm-embed-slot'
+            )].some(element => element.closest('blockquote.v3rm-quote') === quote);
+            if (!containsHeavyContent && quote.scrollHeight <= previewHeight) return;
+
+            const shell = document.createElement('div');
+            shell.className = 'v3rm-quote-shell';
+            quote.before(shell);
+            shell.appendChild(quote);
+            quote.classList.add('quote-collapsed');
+            quote.style.setProperty('--quote-preview-height', `${previewHeight}px`);
+
+            const fade = document.createElement('div');
+            fade.className = 'v3rm-quote-fade';
+
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'v3rm-quote-toggle';
+            toggle.setAttribute('aria-expanded', 'false');
+            const collapsedLabel = depth > 0 ? 'Show earlier quote' : 'Show full quote';
+            toggle.innerHTML = `<i class="fa fa-chevron-down"></i> ${collapsedLabel}`;
+
+            toggle.addEventListener('click', () => {
+                const expanded = shell.classList.toggle('expanded');
+                toggle.setAttribute('aria-expanded', String(expanded));
+                toggle.innerHTML = expanded
+                    ? '<i class="fa fa-chevron-up"></i> Collapse quote'
+                    : `<i class="fa fa-chevron-down"></i> ${collapsedLabel}`;
+            });
+
+            shell.appendChild(fade);
+            shell.appendChild(toggle);
         });
     }
 
