@@ -41,7 +41,8 @@ The simplest deployment has Oracle serve both the frontend and API:
 Visitor -> Cloudflare DNS/proxy -> Oracle VM -> Caddy -> Docker app
                                                        |-> local SQLite databases
                                                        `-> Iframely
-                                                backups/downloads -> R2
+
+GitHub Release -> versioned .zst snapshot -> Oracle VM
 ```
 
 The split deployment keeps static assets on Cloudflare Pages:
@@ -54,10 +55,12 @@ Visitor -> Cloudflare Pages -> static HTML/CSS/JavaScript
 Oracle VM -> Python API -> local SQLite databases
           `-> Iframely
 
-R2/custom download domain -> users.db.zst, threads.db.zst, SHA256SUMS
+GitHub Release -> users.db.zst, threads.db.zst, SHA256SUMS
 ```
 
-Start with the single-VM deployment. Add Pages after the site looks correct; it is an optimization, not a prerequisite.
+Start with the single-VM deployment. Add Pages after the site looks correct; it
+is an optimization, not a prerequisite. Cloudflare R2 is not required for this
+setup because the versioned database snapshots fit in GitHub Releases.
 
 ## Run locally with Docker
 
@@ -69,24 +72,41 @@ Requirements:
 
 ### 1. Obtain the databases
 
-Once a release has been uploaded to R2 or GitHub Releases, use its base download URL.
+The current databases are attached to the
+[Database Snapshot 2026-07-18](https://github.com/Lukejdjd/V3rmillion-Archive-Explorer/releases/tag/database-2026-07-18)
+GitHub Release. While the repository is private, install the GitHub CLI and sign
+in before downloading the assets.
 
-Windows PowerShell:
+Download the authenticated release assets on Windows, Linux, or macOS:
+
+```bash
+gh auth login
+gh release download database-2026-07-18 \
+  --repo Lukejdjd/V3rmillion-Archive-Explorer \
+  --pattern "*.zst" \
+  --pattern "SHA256SUMS" \
+  --dir data/downloads
+```
+
+Windows PowerShell decompression:
 
 ```powershell
 winget install Meta.Zstandard
-Set-ExecutionPolicy -Scope Process Bypass
-.\scripts\download_databases.ps1 -BaseUrl "https://downloads.example.com"
+zstd -t data\downloads\users.db.zst data\downloads\threads.db.zst
+zstd -d -f -o data\users.db data\downloads\users.db.zst
+zstd -d -f -o data\threads.db data\downloads\threads.db.zst
 ```
 
-Linux/macOS:
+Linux/macOS decompression:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y curl zstd
-sh scripts/download_databases.sh "https://downloads.example.com"
+sudo apt-get update && sudo apt-get install -y zstd
+(cd data/downloads && sha256sum -c SHA256SUMS)
+zstd -d -f -o data/users.db data/downloads/users.db.zst
+zstd -d -f -o data/threads.db data/downloads/threads.db.zst
 ```
 
-The scripts download `SHA256SUMS`, verify both archives, and create:
+These commands verify the archives and create:
 
 ```text
 data/users.db
@@ -240,37 +260,18 @@ Get-FileHash -Algorithm SHA256 data\downloads\threads.db.zst
 
 The `.zst` files are lossless. Ordinary SQLite cannot query them while compressed; local users must decompress them first.
 
-## Publish database artifacts to Cloudflare R2
+## Optional Cloudflare R2 mirror
 
-R2 is artifact and backup storage, not the live SQLite filesystem. The Oracle VM must query raw databases on its local block volume.
+R2 is not required for the current deployment. GitHub Releases holds the
+versioned compressed snapshots, and the Oracle VM queries decompressed SQLite
+files on its local disk. Consider adding an R2 mirror later only when:
 
-1. In Cloudflare, create an R2 Standard bucket such as `archive-databases`.
-2. Create an R2 API token limited to that bucket.
-3. Configure `rclone` or the AWS CLI using the R2 credentials.
-4. Upload all three release files.
+- an individual release artifact approaches GitHub's 2 GiB limit;
+- public downloads need a custom hostname without GitHub authentication; or
+- automated rotating backups are needed more often than versioned releases.
 
-Rclone is recommended for the 1.39 GB thread artifact because it supports resumable multipart uploads:
-
-```bash
-rclone copy data/downloads/ r2:archive-databases/ --progress
-rclone ls r2:archive-databases/
-```
-
-AWS CLI alternative:
-
-```bash
-aws s3 cp data/downloads/ s3://archive-databases/ \
-  --recursive \
-  --endpoint-url "https://ACCOUNT_ID.r2.cloudflarestorage.com"
-```
-
-Connect a custom domain such as `downloads.example.com` to the bucket and make only the release objects public. The download scripts use this hostname as `BaseUrl`.
-
-Relevant Cloudflare documentation:
-
-- [R2 CLI tools](https://developers.cloudflare.com/r2/get-started/cli/)
-- [R2 multipart uploads](https://developers.cloudflare.com/r2/objects/upload-objects/)
-- [R2 public buckets and custom domains](https://developers.cloudflare.com/r2/buckets/public-buckets/)
+Never run the live SQLite databases directly from R2 or another network
+filesystem.
 
 ## Deploy the API and optional full site to Oracle Cloud
 
@@ -291,7 +292,7 @@ Do not expose ports 8000 or 8061 publicly.
 Follow Docker's official Ubuntu installation instructions, then:
 
 ```bash
-git clone https://github.com/OWNER/V3rmillion-Archive-Explorer.git
+git clone https://github.com/Lukejdjd/V3rmillion-Archive-Explorer.git
 cd V3rmillion-Archive-Explorer
 cp .env.example .env
 ```
@@ -305,9 +306,21 @@ SITE_DOMAIN=api.example.com
 Download and decompress the databases directly on the VM:
 
 ```bash
-sudo apt-get install -y curl zstd
-sh scripts/download_databases.sh "https://downloads.example.com"
+sudo apt-get install -y gh zstd
+gh auth login
+mkdir -p data/downloads
+gh release download database-2026-07-18 \
+  --repo Lukejdjd/V3rmillion-Archive-Explorer \
+  --pattern "*.zst" \
+  --pattern "SHA256SUMS" \
+  --dir data/downloads
+(cd data/downloads && sha256sum -c SHA256SUMS)
+zstd -d -f -o data/users.db data/downloads/users.db.zst
+zstd -d -f -o data/threads.db data/downloads/threads.db.zst
 ```
+
+The GitHub login is required only while the repository is private. Never put a
+GitHub token in the repository, frontend JavaScript, or a Docker image.
 
 ### 3. Start the production stack
 
@@ -374,13 +387,15 @@ Pages routing and build references:
 
 ## Backups and updates
 
-The production databases are mounted read-only, so the uploaded release artifacts are also the primary restore source. Keep at least two R2 prefixes:
+The production databases are mounted read-only. Each GitHub database release is
+a versioned restore point. Keep the current release, at least one older release,
+and a separate local copy of the compressed files.
 
 ```text
-releases/2026-07-18/users.db.zst
-releases/2026-07-18/threads.db.zst
-releases/2026-07-18/SHA256SUMS
-releases/latest/...
+database-2026-07-18
+|-- users.db.zst
+|-- threads.db.zst
+`-- SHA256SUMS
 ```
 
 For an update:
@@ -388,56 +403,53 @@ For an update:
 1. Rebuild and validate both databases on a workstation.
 2. Compress them with Zstandard level 15.
 3. Test both streams with `zstd -t` and generate `SHA256SUMS`.
-4. Upload to a new versioned R2 prefix.
+4. Upload all three files to a new versioned GitHub Release.
 5. Download/decompress on Oracle into a staging directory.
 6. Verify `PRAGMA integrity_check`.
 7. Stop the archive container, atomically replace both database files, and restart it.
-8. Update the `latest` R2 objects only after production validation.
+8. Keep the previous release until the new production databases are validated.
 
-Never edit SQLite directly over an R2/network filesystem.
+Never edit SQLite directly over a network filesystem.
 
-## GitHub open-source release
+## Publish database artifacts with GitHub Releases
 
-Do not commit raw or compressed databases to Git. Publish the source code normally and attach these files to a GitHub Release or link to R2:
+Do not commit raw or compressed databases to Git. Publish the source code
+normally and attach these files to a GitHub Release:
 
 - `users.db.zst`
 - `threads.db.zst`
 - `SHA256SUMS`
 
-GitHub currently requires each release asset to be under 2 GiB. The 1.39 GB thread artifact fits, but R2 should remain the canonical mirror because it provides resumable uploads and a stable custom download domain. See [GitHub's release documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+GitHub currently requires each release asset to be under 2 GiB. The 1.39 GB
+thread artifact fits, so GitHub Releases is the canonical snapshot source for
+this deployment. See [GitHub's release documentation](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 After installing and signing in to the GitHub CLI, create a database release:
 
 ```bash
 gh auth login
-gh release create database-2026-07-18 \
+gh release create database-YYYY-MM-DD \
   data/downloads/users.db.zst \
   data/downloads/threads.db.zst \
   data/downloads/SHA256SUMS \
-  --title "Database snapshot 2026-07-18" \
+  --title "Database snapshot YYYY-MM-DD" \
   --notes "Lossless Zstandard level 15 archive database snapshot. Verify with SHA256SUMS."
 ```
 
 Verify that all three assets are attached:
 
 ```bash
-gh release view database-2026-07-18
+gh release view database-YYYY-MM-DD
 ```
 
-People can then install the databases directly from that release. Replace
-`OWNER` and `REPOSITORY` below with the GitHub repository path:
-
-```powershell
-.\scripts\download_databases.ps1 -BaseUrl "https://github.com/OWNER/REPOSITORY/releases/download/database-2026-07-18"
-```
-
-```bash
-sh scripts/download_databases.sh "https://github.com/OWNER/REPOSITORY/releases/download/database-2026-07-18"
-```
+People with access to the private repository can install databases using the
+authenticated `gh release download` command shown above. If the repository is
+made public later, the included download scripts can use the release's direct
+base URL without authentication.
 
 Do not use Git LFS or commit the database files themselves. A release asset is
 kept outside Git history, so code clones remain small. If `threads.db.zst`
-eventually reaches 2 GiB, publish that snapshot through R2 instead.
+eventually reaches 2 GiB, split the artifact or add an R2 mirror.
 
 Before publishing the dataset, separately review copyright, privacy, takedown, and data-retention obligations. An open-source code license does not automatically grant permission to redistribute archived user content.
 
