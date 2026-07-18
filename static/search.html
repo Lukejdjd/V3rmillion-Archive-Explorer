@@ -373,6 +373,13 @@
             align-items: end;
             margin: 0;
         }
+        .search-toolbar-secondary {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
         .index-filter-grid > [class*="col-"],
         .fts-filter-grid > [class*="col-"] {
             width: auto;
@@ -616,7 +623,7 @@
                         <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height:calc(1.5em + .75rem + 2px);">Search Posts</button>
                     </div>
                 </div>
-                <div class="mb-2">
+                <div class="search-toolbar-secondary">
                     <button type="button" class="btn btn-sm" id="dateFilterToggle"
                         style="background:#1a1a1a;color:#888;border:1px solid #2a2a2a;font-size:0.72rem;padding:3px 10px;"
                         onclick="toggleDateFilter()">
@@ -665,6 +672,12 @@
     // ════════════════════════════════════════════════════════════════════════
     const INDEX_PAGE_SIZE = 24;
     const FTS_PAGE_SIZE   = 30;
+
+    function formatDuration(milliseconds) {
+        if (milliseconds < 1000) return `${milliseconds.toFixed(1)} ms`;
+        const seconds = milliseconds / 1000;
+        return `${seconds.toFixed(seconds >= 10 ? 1 : 2)} s`;
+    }
 
     // Index search state
     let indexOffset     = 0;
@@ -986,7 +999,7 @@
 
             const rows  = data.results || [];
             const total = data.total   ?? rows.length;
-            const ms    = (performance.now() - t0).toFixed(1);
+            const elapsedMs = performance.now() - t0;
             indexTotal  = total;
             indexOffset = offset;
 
@@ -1001,7 +1014,7 @@
 
             // Metrics
             const metricsEl = document.getElementById('index-metrics');
-            metricsEl.textContent = `${total.toLocaleString()} thread${total === 1 ? '' : 's'} found (${ms} ms)`;
+            metricsEl.textContent = `${total.toLocaleString()} thread${total === 1 ? '' : 's'} found (${formatDuration(elapsedMs)})`;
             metricsEl.style.display = 'flex';
 
             renderIndexPagination(offset, total);
@@ -1158,7 +1171,7 @@
             if (data.error) throw new Error(data.error);
 
             const rows = data.results || data.posts || [];
-            const ms   = (performance.now() - t0).toFixed(1);
+            const elapsedMs = performance.now() - t0;
 
             if (replace) container.innerHTML = '';
 
@@ -1174,7 +1187,7 @@
             rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
 
             const metricsEl = document.getElementById('fts-metrics');
-            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown (${ms} ms)`;
+            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown (${formatDuration(elapsedMs)})`;
             metricsEl.style.display = 'flex';
             document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
 
