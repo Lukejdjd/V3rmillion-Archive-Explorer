@@ -7,6 +7,7 @@
 import re
 import os
 import json
+import copy
 import threading
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -77,16 +78,15 @@ def get_text_start(text: str, p: float = 0.08) -> Optional[str]:
     return text[:round(len(text) * p + 1)]
 
 
+def sortpages(v: str) -> int:
+    match = PAGE_RE.search(v)
+    return int(match.group()) if match else 0
+
+
 def parse_user_stars(author_info_node) -> int:
     if not author_info_node:
         return 0
-    soup = BeautifulSoup(author_info_node.html, 'lxml')
-    return len(soup.select('img[src*="star"]'))
-
-
-
-    match = PAGE_RE.search(v)
-    return int(match.group()) if match else 0
+    return len(author_info_node.css('img[src*="star"]'))
 
 
 def transform_spoilers(soup: BeautifulSoup) -> BeautifulSoup:
@@ -201,11 +201,22 @@ def bs4_get_text(node: Node) -> str:
     )
 
 
-def process_post_body(soup: BeautifulSoup) -> BeautifulSoup:
-    soup = extract_code_blocks(soup)
-    soup = transform_quotes(soup)
-    soup = transform_spoilers(soup)
-    soup = process_links_and_assets(soup)
+def process_post_body(
+    soup: BeautifulSoup,
+    *,
+    has_codeblock: bool,
+    has_blockquote: bool,
+    has_spoiler: bool,
+    has_assets: bool,
+) -> BeautifulSoup:
+    if has_codeblock:
+        soup = extract_code_blocks(soup)
+    if has_blockquote:
+        soup = transform_quotes(soup)
+    if has_spoiler:
+        soup = transform_spoilers(soup)
+    if has_assets:
+        soup = process_links_and_assets(soup)
 
     return soup
 
@@ -348,12 +359,14 @@ def get_post_information(
         raw_html = post_body_node.html or ""
 
         has_blockquote = "blockquote" in raw_html
+        has_spoiler = "spoiler" in raw_html
+        has_codeblock = "codeblock" in raw_html
+        has_assets = "<img" in raw_html or "<a " in raw_html
         needs_complex_parse = (
             has_blockquote
-            or "spoiler" in raw_html
-            or "codeblock" in raw_html
-            or "<img" in raw_html
-            or "<a " in raw_html
+            or has_spoiler
+            or has_codeblock
+            or has_assets
         )
 
         if needs_complex_parse:
@@ -383,10 +396,7 @@ def get_post_information(
                         if dm:
                             replied_to_message_date = dm.group(1)
 
-                    first_bq_for_matching = BeautifulSoup(
-                        str(first_bq),
-                        'lxml'
-                    )
+                    first_bq_for_matching = copy.copy(first_bq)
 
                     cite_el = first_bq_for_matching.find("cite")
 
@@ -402,7 +412,13 @@ def get_post_information(
                         blockquote_element_text
                     )
 
-            soup = process_post_body(soup)
+            soup = process_post_body(
+                soup,
+                has_codeblock=has_codeblock,
+                has_blockquote=has_blockquote,
+                has_spoiler=has_spoiler,
+                has_assets=has_assets,
+            )
 
             body = soup.find('body') or soup
 
@@ -610,7 +626,7 @@ def load_thread_json_meta(
         return None, None, None
 
 
-def init_db():
+def init_db(create_fts: bool = True):
     conn = sqlite3.connect(DB_PATH, timeout=60)
 
     conn.execute("PRAGMA journal_mode=WAL")
@@ -655,43 +671,176 @@ def init_db():
         ON posts(thread_id);
     ''')
 
-    try:
-        conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS "
-            "fts_posts USING fts5("
-            "post_description, "
-            "author_username, "
-            "author_id, "
-            "thread_id, "
-            "post_id)"
-        )
+    if create_fts:
+        try:
+            conn.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS "
+                "fts_posts USING fts5("
+                "post_description, "
+                "author_username, "
+                "author_id, "
+                "thread_id, "
+                "post_id)"
+            )
 
-    except sqlite3.OperationalError:
-        pass
+        except sqlite3.OperationalError:
+            pass
 
-    try:
-        conn.execute(
-            "CREATE VIRTUAL TABLE IF NOT EXISTS "
-            "fts_threads USING fts5("
-            "title, "
-            "author_username, "
-            "author_id, "
-            "categories, "
-            "thread_id)"
-        )
+        try:
+            conn.execute(
+                "CREATE VIRTUAL TABLE IF NOT EXISTS "
+                "fts_threads USING fts5("
+                "title, "
+                "author_username, "
+                "author_id, "
+                "categories, "
+                "thread_id)"
+            )
 
-    except sqlite3.OperationalError:
-        pass
+        except sqlite3.OperationalError:
+            pass
 
     return conn
+
+
+THREAD_INSERT_SQL = """
+    INSERT OR REPLACE INTO threads (
+        thread_id,
+        title,
+        author_username,
+        author_id,
+        categories,
+        date,
+        reply_count
+    )
+    VALUES (?,?,?,?,?,?,?)
+"""
+
+
+POST_INSERT_SQL = """
+    INSERT OR REPLACE INTO posts (
+        post_id,
+        thread_id,
+        post_number,
+        unix_time,
+        post_date,
+        last_edit,
+        likes,
+        dislikes,
+        author_username,
+        author_id,
+        user_title,
+        user_rank,
+        user_group,
+        user_stars,
+        reputation,
+        replied_to,
+        replied_to_post_date,
+        post_description,
+        is_op
+    )
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+"""
+
+
+def collect_posts(pinfo, is_op=False):
+    out = [(pinfo, is_op)]
+
+    for reply in pinfo.get("replies", []):
+        out.extend(collect_posts(reply, False))
+
+    return out
+
+
+def build_thread_rows(thread_id: str):
+    html_folder = os.path.join(THREADS_DIR, thread_id)
+    data = thread_parser(html_folder)
+
+    categories = data.get("categories", []) or ["Uncategorized"]
+    meta_title, meta_username, meta_author_id = load_thread_json_meta(
+        html_folder
+    )
+    thread_content = data.get("thread_content") or {}
+
+    clean_title = (
+        meta_title
+        or (data.get("title") or "Untitled Thread")
+    ).strip()
+    author = (
+        meta_username
+        or thread_content.get("author_username")
+        or "Unknown User"
+    )
+    thread_date = thread_content.get("post_date") if thread_content else None
+    reply_count = (
+        len(thread_content.get("replies", []))
+        if thread_content else 0
+    )
+    thread_row = (
+        thread_id,
+        clean_title,
+        author,
+        meta_author_id,
+        json.dumps(categories),
+        thread_date,
+        reply_count,
+    )
+
+    post_rows = []
+    for post_info, is_op in (
+        collect_posts(thread_content, True) if thread_content else []
+    ):
+        post_id = (
+            post_info.get("post_id")
+            or f"{thread_id}_{post_info.get('post_number') or ''}".strip("_")
+        )
+        post_rows.append((
+            post_id,
+            thread_id,
+            post_info.get("post_number"),
+            post_info.get("unix_time"),
+            post_info.get("post_date"),
+            post_info.get("last_edit"),
+            post_info.get("likes"),
+            post_info.get("dislikes"),
+            post_info.get("author_username"),
+            post_info.get("author_id"),
+            post_info.get("user_title"),
+            post_info.get("user_rank"),
+            (
+                json.dumps(post_info.get("user_group"))
+                if post_info.get("user_group") is not None
+                else None
+            ),
+            post_info.get("user_stars"),
+            post_info.get("reputation"),
+            post_info.get("replied_to"),
+            post_info.get("replied_to_post_date"),
+            post_info.get("post_description"),
+            1 if is_op else 0,
+        ))
+
+    return thread_row, post_rows
+
+
+def parse_thread_worker(thread_id: str):
+    try:
+        return "success", build_thread_rows(thread_id)
+    except Exception as exc:
+        return "error", f"Error {thread_id}: {exc}"
+
+
+def write_thread_batch(cur, thread_rows, post_rows):
+    if thread_rows:
+        cur.executemany(THREAD_INSERT_SQL, thread_rows)
+    if post_rows:
+        cur.executemany(POST_INSERT_SQL, post_rows)
 
 
 def run_migration_on_file(
     thread_id: str,
     overwrite: bool = False
 ):
-    html_folder = os.path.join(THREADS_DIR, thread_id)
-
     try:
         conn = init_db()
         cur = conn.cursor()
@@ -706,133 +855,8 @@ def run_migration_on_file(
                 conn.close()
                 return "skipped"
 
-        data = thread_parser(html_folder)
-
-        categories = (
-            data.get("categories", [])
-            or ["Uncategorized"]
-        )
-
-        meta_title, meta_username, meta_author_id = (
-            load_thread_json_meta(html_folder)
-        )
-
-        clean_title = (
-            meta_title
-            or (data.get("title") or "Untitled Thread")
-        ).strip()
-
-        author = (
-            meta_username
-            or (
-                data.get("thread_content") or {}
-            ).get("author_username")
-            or "Unknown User"
-        )
-
-        author_id = meta_author_id
-
-        thread_content = data.get("thread_content") or {}
-
-        thread_date = (
-            thread_content.get("post_date")
-            if thread_content else None
-        )
-
-        reply_count = (
-            len(thread_content.get("replies", []))
-            if thread_content else 0
-        )
-
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO threads
-            (
-                thread_id,
-                title,
-                author_username,
-                author_id,
-                categories,
-                date,
-                reply_count
-            )
-            VALUES (?,?,?,?,?,?,?)
-            """,
-            (
-                thread_id,
-                clean_title,
-                author,
-                author_id,
-                json.dumps(categories),
-                thread_date,
-                reply_count
-            )
-        )
-
-        def collect_posts(pinfo, is_op=False):
-            out = [(pinfo, is_op)]
-
-            for r in pinfo.get("replies", []):
-                out.extend(collect_posts(r, False))
-
-            return out
-
-        for post_info, is_op in (
-            collect_posts(thread_content, True)
-            if thread_content else []
-        ):
-            post_id = (
-                post_info.get("post_id")
-                or f"{thread_id}_{post_info.get('post_number') or ''}".strip("_")
-            )
-
-            cur.execute(
-                """
-                INSERT OR REPLACE INTO posts(
-                    post_id,
-                    thread_id,
-                    post_number,
-                    unix_time,
-                    post_date,
-                    last_edit,
-                    likes,
-                    dislikes,
-                    author_username,
-                    author_id,
-                    user_title,
-                    user_rank,
-                    user_group,
-                    user_stars,
-                    reputation,
-                    replied_to,
-                    replied_to_post_date,
-                    post_description,
-                    is_op
-                )
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                """,
-                (
-                    post_id,
-                    thread_id,
-                    post_info.get('post_number'),
-                    post_info.get('unix_time'),
-                    post_info.get('post_date'),
-                    post_info.get('last_edit'),
-                    post_info.get('likes'),
-                    post_info.get('dislikes'),
-                    post_info.get('author_username'),
-                    post_info.get('author_id'),
-                    post_info.get('user_title'),
-                    post_info.get('user_rank'),
-                    json.dumps(post_info.get('user_group')) if post_info.get('user_group') is not None else None,
-                    post_info.get('user_stars'),
-                    post_info.get('reputation'),
-                    post_info.get('replied_to'),
-                    post_info.get('replied_to_post_date'),
-                    post_info.get('post_description'),
-                    1 if is_op else 0
-                )
-            )
+        thread_row, post_rows = build_thread_rows(thread_id)
+        write_thread_batch(cur, [thread_row], post_rows)
 
         fts_exists = conn.execute(
             """
@@ -914,7 +938,7 @@ def update_fts_for_thread(
 
 def run_concurrent_migration(
     overwrite: bool = False,
-    workers: int = 12
+    workers: int = 8
 ):
     os.makedirs(INDEX_DIR, exist_ok=True)
 
@@ -930,27 +954,56 @@ def run_concurrent_migration(
         f"Starting with {workers} workers..."
     )
 
+    write_conn = init_db(create_fts=False)
+    write_conn.execute("PRAGMA synchronous=NORMAL")
+
+    if overwrite:
+        thread_ids = all_thread_ids
+        skipped_count = 0
+    else:
+        print("Loading existing thread IDs once...")
+        existing_ids = {
+            row[0]
+            for row in write_conn.execute("SELECT thread_id FROM threads")
+        }
+        thread_ids = [
+            thread_id for thread_id in all_thread_ids
+            if thread_id not in existing_ids
+        ]
+        skipped_count = total - len(thread_ids)
+        print(f"Skipping {skipped_count:,} existing threads.")
+
+    if not thread_ids:
+        write_conn.close()
+        print("No threads need processing.")
+        return
+
     print("Dropping FTS indexes for bulk insert...")
-
-    conn = sqlite3.connect(DB_PATH, timeout=60)
-
-    conn.execute("PRAGMA journal_mode=WAL")
-
-    conn.execute("DROP TABLE IF EXISTS fts_posts")
-    conn.execute("DROP TABLE IF EXISTS fts_threads")
-
-    conn.commit()
-    conn.close()
-
-    print("FTS indexes dropped.")
+    write_conn.execute("DROP TABLE IF EXISTS fts_posts")
+    write_conn.execute("DROP TABLE IF EXISTS fts_threads")
+    write_conn.commit()
+    print("FTS indexes dropped; they will remain off during parsing.")
 
     chunk_size = 10000
+    write_batch_size = 500
 
     counts = {
         "done": 0,
-        "skipped": 0,
+        "skipped": skipped_count,
         "failed": 0
     }
+
+    write_cur = write_conn.cursor()
+    pending_threads = []
+    pending_posts = []
+
+    def flush_pending():
+        if not pending_threads:
+            return
+        write_thread_batch(write_cur, pending_threads, pending_posts)
+        write_conn.commit()
+        pending_threads.clear()
+        pending_posts.clear()
 
     with tqdm(
         total=total,
@@ -960,46 +1013,50 @@ def run_concurrent_migration(
         mininterval=0.3,
         smoothing=0.1
     ) as pbar:
+        if skipped_count:
+            pbar.update(skipped_count)
 
-        for i in range(0, total, chunk_size):
-            chunk = all_thread_ids[i:i + chunk_size]
+        with ProcessPoolExecutor(max_workers=workers) as executor:
+            for i in range(0, len(thread_ids), chunk_size):
+                chunk = thread_ids[i:i + chunk_size]
 
-            print(
-                f"\nProcessing chunk "
-                f"{i//chunk_size + 1} / "
-                f"{total//chunk_size + 1} "
-                f"({len(chunk):,} threads)..."
-            )
-
-            with ProcessPoolExecutor(
-                max_workers=workers
-            ) as executor:
+                print(
+                    f"\nProcessing chunk "
+                    f"{i//chunk_size + 1} / "
+                    f"{(len(thread_ids) - 1)//chunk_size + 1} "
+                    f"({len(chunk):,} threads)..."
+                )
 
                 futures = {
                     executor.submit(
-                        run_migration_on_file,
-                        thread_id,
-                        overwrite
+                        parse_thread_worker,
+                        thread_id
                     ): thread_id
                     for thread_id in chunk
                 }
 
                 for future in as_completed(futures):
-                    result = future.result()
+                    status, payload = future.result()
 
-                    if result is True:
+                    if status == "success":
+                        thread_row, post_rows = payload
+                        pending_threads.append(thread_row)
+                        pending_posts.extend(post_rows)
                         counts["done"] += 1
 
-                    elif result == "skipped":
-                        counts["skipped"] += 1
+                        if len(pending_threads) >= write_batch_size:
+                            flush_pending()
 
                     else:
                         counts["failed"] += 1
-
-                        if "Error" in str(result):
-                            print(f"\n{result}")
+                        print(f"\n{payload}")
 
                     pbar.update(1)
+
+                flush_pending()
+
+    flush_pending()
+    write_conn.close()
 
     print("\n" + "=" * 70)
 
@@ -1109,6 +1166,7 @@ if __name__ == "__main__":
 
     parser.add_argument("--thread", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--workers", type=int, default=8)
 
     args = parser.parse_args()
 
@@ -1121,7 +1179,9 @@ if __name__ == "__main__":
         print(f"Result: {result}")
 
     else:
+        if args.workers < 1:
+            parser.error("--workers must be at least 1")
         run_concurrent_migration(
             overwrite=args.overwrite,
-            workers=12
+            workers=args.workers
         )

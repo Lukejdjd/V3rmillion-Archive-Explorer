@@ -21,8 +21,18 @@ Thumbs.db
 # Logs
 *.log
 
-# SQLite
+# Large archive data and generated databases
+data/
+*.db
+*.db-shm
+*.db-wal
 *.sqlite3
+
+# Dependency folders
+node_modules/
+
+# Editor scratch files
+tempCodeRunnerFile.*
 
 docs.md
 index/
