@@ -26,7 +26,7 @@ from v3rm_assets import (
     split_glued_image_text,
 )
 
-sys.stdout.reconfigure(line_buffering=True)
+sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
 # ── Paths ──────────────────────────────────────────────────
 ROOT_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

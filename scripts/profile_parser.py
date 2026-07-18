@@ -22,8 +22,8 @@ from v3rm_assets import (
     resolve_usergroup,
 )
 
-# Better output for tqdm
-sys.stdout.reconfigure(line_buffering=True)
+# Keep progress/status output valid when Windows redirects stdout.
+sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR = os.path.join(ROOT_DIR, "data")
