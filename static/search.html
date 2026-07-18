@@ -1178,11 +1178,9 @@
 
     function decodeEntities(str) {
         if (!str) return '';
-        return str.replace(/&amp;/g, '&')
-                .replace(/&lt;/g, '<')
-                .replace(/&gt;/g, '>')
-                .replace(/&quot;/g, '"')
-                .replace(/&#0?39;/g, "'"); // Catches both &#39; and &#039;
+        const decoder = document.createElement('textarea');
+        decoder.innerHTML = String(str);
+        return decoder.value;
     }
 
     const IFRAMELY_ENDPOINT = '/iframely';
@@ -1311,7 +1309,12 @@
         }
 
         function makeCodeBlock(rawCode, langHint) {
-            const cleanCode = String(rawCode || '').replace(/^(?:\r?\n)+/, '').replace(/(?:\r?\n)+$/, '');
+            // Parser output preserves HTML entities from the archived page.
+            // Decode them before highlighting; highlight.js (or escapeHTML in
+            // the fallback path) safely escapes the resulting source text.
+            const cleanCode = decodeEntities(String(rawCode || ''))
+                .replace(/^(?:\r?\n)+/, '')
+                .replace(/(?:\r?\n)+$/, '');
             const hintedLang = LANG_MAP[(langHint||'').toLowerCase().trim()] || null;
             const detectedHint = hintedLang || detectCodeLanguage(cleanCode);
             const hljsLang = detectedHint && LANG_MAP[detectedHint] ? LANG_MAP[detectedHint] : detectedHint;
