@@ -1,0 +1,88 @@
+<html>
+<head>
+<title>Edit Custom Handle</title>
+{$headerinclude}
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    const handleInput = document.querySelector('input[name="handle"]');
+    const handleBtn = document.querySelector('input[name="submit"]');
+
+    handleInput.addEventListener("input", function() {
+        // If the input is only '@', clear it to allow the placeholder to show
+        if (handleInput.value === '@') {
+            handleInput.classList.remove("valid");
+            handleInput.classList.remove("error");
+            handleInput.value = '';
+            handleBtn.disabled = true;
+            return; // Exit early
+        }
+
+        // If the input is not empty
+        if (handleInput.value.length > 0) {
+			
+            // Prepend '@' if it doesn't already start with it
+            if (handleInput.value[0] !== '@') {
+                handleInput.value = '@' + handleInput.value;
+            }
+
+            // Validate the handle without the '@'
+            const handleWithoutAt = handleInput.value.slice(1);
+            const isValidHandle = /^[a-zA-Z0-9]*$/.test(handleWithoutAt);
+
+            // Check length and validation status
+            if (handleWithoutAt.length >= 3 && isValidHandle) {
+                handleInput.classList.add("valid");
+                handleInput.classList.remove("error");
+                handleBtn.disabled = false;
+            } else {
+                handleInput.classList.remove("valid");
+                handleInput.classList.add("error");
+                handleBtn.disabled = true;
+            }
+        } else {
+            handleInput.classList.remove("valid");
+            handleInput.classList.remove("error");
+            handleBtn.disabled = true;
+        }
+    });
+});
+</script>
+</head>
+<body>
+{$header}
+<table width="100%" border="0" align="center">
+    <tbody>
+        <tr>
+            {$usercpnav}
+            <td valign="top">
+                <table border="0" cellspacing="0" cellpadding="5" class="tborder">
+                    <tbody>
+						<tr>
+                            <td class="thead" colspan="2">
+                                <strong>Create your handle</strong>
+                            </td>
+                        </tr>
+                        <tr>
+							<td align="center" class="trow1">
+								{$currentUserhandleHtml}
+								<p>You could set or change your user handle here, which will be visible on your profile. Your handle must be between 3 and 20 characters long. You can only change it once per week. Your handle cannot contain any special symbols.</p>
+								<form action="usercp.php?action=handle" method="post">
+        <input type="text" class="textbox" name="handle" value="{$userhandle['athandle']}" placeholder="Choose a handle" maxlength="21" autocomplete="off" required><br><br>
+        <input type="submit" class="button" name="submit" value="Register Handle">
+								</form>
+							</td>
+                        
+						</tr>
+                    </tbody>
+                </table>
+				<br>
+				<div align="center" bis_skin_checked="1">
+					{$two_fa_buttons}
+				</div>
+            </td>
+        </tr>
+    </tbody>
+</table>
+{$footer}
+</body>
+</html>

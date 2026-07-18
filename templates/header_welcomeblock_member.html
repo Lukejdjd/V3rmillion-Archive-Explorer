@@ -1,0 +1,30 @@
+<!-- Continuation of div(class="upper") as opened in the header template -->
+<ul class="panel_links">
+     <li><a href="usercp.php" class="usercp"><i class="fa fa-lg fa-cog"></i></a></li>
+     <li><a class="pm_anchor" href="private.php"><i class="fa fa-lg fa-envelope"></i><span class="pm_count">0</span></a></li>
+     <li class="alerts ">
+        <a href="{$mybb->settings['bburl']}/alerts.php" class="myalerts open_modal alert_anchor" onclick="MyBB.popupWindow('/alerts.php?modal=1&amp;ret_link={$myalerts_return_link}', { fadeDuration: 250, zIndex: (typeof modal_zindex !== 'undefined' ? modal_zindex : 9999) }); return false;"><i class="fa fa-lg fa-bell"></i><span class="alert_count  {$newAlertsIndicator}">0</span></a>
+</li>
+  </ul>
+  <div class="user_avatar hidden"><img src="" alt=""  /></div>
+  <div class="ddm_anchor">
+     <a href="#"><strong>{$mybb->user['username']}</strong></a>
+     <div class="panel_buttons">
+        <a href="member.php?action=profile&uid={$mybb->user['uid']}"><i class="fa fa-user"></i>&nbsp; My Profile</a>
+        <a href="usercp.php?action=2fa"><i class="fa fa-key"></i>&nbsp; 2 Factor Authentication</a>
+        <a href="usercp.php?action=countrylock"><i class="fa fa-lock"></i>&nbsp; Country Lock</a>
+        <a href="usercp.php?action=loginlogs"><i class="fa fa-list"></i>&nbsp; Login Logs</a>
+        <a href="search.php?action=finduser&uid={$mybb->user['uid']}"><i class="fa fa-comments"></i>&nbsp; View My Posts</a>
+        <a href="search.php?action=finduserthreads&uid={$mybb->user['uid']}"><i class="fa fa-files-o"></i>&nbsp; View My Threads</a>
+		 <?php 
+if($mybb->usergroup['canmodcp'] == 1) {
+    echo '<a href="modcp.php"><i class="fa fa-envelope"></i>&nbsp; View ModCP</a>';
+	if (is_super_admin($mybb->user['uid'])) {
+		echo '<a href="/admincp/"><i class="fa fa-envelope"></i>&nbsp; View AdminCP</a>';
+	}
+}
+ ?>
+        <a href="#" onclick="MyBB.popupWindow('misc.php?action=buddypopup&modal=1', null, true); return false;"><i class="fa fa-users"></i>&nbsp; Open Buddy List</a>
+        <a href="member.php?action=logout&amp;logoutkey={$mybb->user['logoutkey']}" class="logout"><i class="fa fa-sign-out"></i>&nbsp; Log Out</a>
+     </div>
+</div>

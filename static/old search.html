@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="v3rmillion, v3rm-archive, v3rm, v3rmillion-archive" />
+    <meta name="description" content="V3rmillion Local Archive Index Explorer" />
+    <title>V3rmillion Index Search</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+    
+    <!-- Highlight.js Styling Engine (VS2015 Dark Theme) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/vs2015.min.css">
+    <!-- Main Highlight.js Library Core -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+
+
+    <style>
+        /* ── Base Styling Matching View Thread ── */
+        body { 
+            background-color: #0a0a0a !important; 
+            color: #ccc; 
+            font-family: 'Open Sans', Tahoma, Verdana, Arial, sans-serif; 
+        }
+        
+        /* ── Complete Transparency Reset on Logo Container ── */
+        .logo-container {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        .logo-img { 
+            max-width: 200px; 
+            height: auto; 
+            background: transparent !important;
+            background-color: transparent !important;
+            mix-blend-mode: normal;
+        }
+
+        /* ── Unified V3rmillion Theme Engine for Search Page ── */
+        .card { 
+            background-color: #111; 
+            border: 1px solid #2a2a2a; 
+            border-top: 4px solid #cd1818; 
+            color: #ccc; 
+        }
+        .card-title { 
+            font-size: 1.05rem; 
+            font-weight: 600; 
+            color: #fff; 
+            line-height: 1.4; 
+        }
+        .thread-id-badge {
+            font-size: .75rem; 
+            background-color: #1a1a1a; 
+            color: #888;
+            border: 1px solid #2a2a2a; 
+            padding: 2px 6px; 
+            border-radius: 4px;
+        }
+        code {
+            color: #ff3333;
+            background-color: #050505;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+
+        /* Input Controls Alignment & Dropdown Background Layout Fixes */
+        .form-control {
+            background-color: #1a1a1a !important; 
+            color: #fff !important; 
+            border: 1px solid #2a2a2a !important;
+            padding-left: 14px !important;
+            padding-right: 14px !important;
+            text-align: left !important;
+        }
+        .filter-select {
+            background-color: #1a1a1a !important;
+            color: #fff !important;
+            border: 1px solid #2a2a2a !important;
+            padding: 0 32px 0 12px !important;
+            height: calc(1.5em + .75rem + 2px) !important;
+            width: 100% !important;
+            cursor: pointer;
+            border-radius: 4px !important;
+            /* Custom dropdown arrow — no browser default */
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            appearance: none !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 10px center !important;
+            /* Truncate long option text cleanly */
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .filter-select:focus {
+            border-color: #cd1818 !important;
+            box-shadow: 0 0 0 0.2rem rgba(205,24,24,0.25) !important;
+            outline: none !important;
+        }
+        
+        .form-control::placeholder {
+            color: #666;
+        }
+        .form-control:focus {
+            border-color: #cd1818 !important;
+            box-shadow: 0 0 0 0.2rem rgba(205, 24, 24, 0.25);
+        }
+        .btn-danger {
+            background-color: #cd1818;
+            border-color: #cd1818;
+        }
+        .btn-danger:hover {
+            background-color: #ab1212;
+            border-color: #ab1212;
+        }
+        .page-link {
+            background-color: #111;
+            border-color: #2a2a2a;
+            color: #cd1818;
+        }
+        .page-link:hover {
+            background-color: #1a1a1a;
+            color: #ff3333;
+            border-color: #2a2a2a;
+        }
+        .page-item.active .page-link {
+            background-color: #cd1818;
+            border-color: #cd1818;
+            color: #fff;
+        }
+        .page-item.disabled .page-link {
+            background-color: #050505;
+            border-color: #2a2a2a;
+            color: #444;
+        }
+
+        /* ── Search page background utilities ── */
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0a0a0a;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999;
+        }
+        .loading-spinner {
+            border: 6px solid #161616; border-top: 6px solid #cd1818;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 2s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        #content { display: none; background-color: transparent !important; }
+
+        /* ── V3rmillion-style modal overlay ── */
+        .viewer-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .viewer-card {
+            width: 92%; max-width: 950px; height: 90vh;
+            background: #0a0a0a; border: 1px solid #2a2a2a;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .viewer-header {
+            background: #1a1a1a; border-bottom: 5px solid #cd1818;
+            padding: 10px 15px; display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+        }
+        .viewer-header-title {
+            color: #fff; font-size: 18px; font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .viewer-close-btn {
+            background: #cd1818; border: 1px solid #cd1818;
+            color: #fff; font-weight: 700; padding: 4px 10px;
+            cursor: pointer; font-size: 13px; flex-shrink: 0; margin-left: 10px;
+        }
+        .viewer-close-btn:hover { background: #404040; border-color: #404040; }
+        
+        .copy-link-btn {
+            background: #252525; border: 1px solid #333;
+            color: #aaa; padding: 2px 8px; font-size: 11px;
+            border-radius: 3px; cursor: pointer; transition: all 0.2s;
+        }
+        .copy-link-btn:hover {
+            background: #cd1818; border-color: #cd1818; color: #fff;
+        }
+
+        /* ── Dark Custom Scrollbar — unified across entire page ── */
+        ::-webkit-scrollbar {
+            width: 10px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0a0a0a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #444;
+            border: 2px solid #0a0a0a;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #666;
+        }
+        * { scrollbar-width: thin; scrollbar-color: #444 #0a0a0a; }
+
+        .viewer-body { 
+            overflow-y: scroll;
+            flex-grow: 1; 
+            background: #0a0a0a; 
+            padding: 0 14px 0 0;
+        }
+
+        /* ── Post styling matching v3rmillion ── */
+        .v3rm-post { overflow: hidden; border-top: 15px solid #0a0a0a; width: 100%; }
+        .v3rm-post-head {
+            font-size: 11px; padding: 8px 10px; border-top: 1px solid #cd1818;
+            color: #888; background: #111; display: flex; justify-content: space-between; align-items: center;
+        }
+        .v3rm-post-date-wrapper {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 5px;
+            line-height: 1.4;
+        }
+        .v3rm-post-num {
+            background: #111; padding: 2px 6px; border-radius: 2px;
+            border: 1px solid #2a2a2a; color: #fff; font-size: 11px; font-weight: 700;
+        }
+        .v3rm-post-author {
+            background: #161616; border-bottom: 1px solid #222;
+            padding: 8px 10px; display: flex; align-items: flex-start; gap: 10px;
+        }
+        .v3rm-author-name { font-size: 14px; font-weight: 700; color: #cd1818; }
+        .v3rm-author-name.op { color: #cd1818; }
+        .v3rm-author-stats { font-size: 11px; color: #777; line-height: 1.5; margin-top: 2px; }
+        .v3rm-post-content { padding: 12px; background: #111; }
+        .v3rm-post-body {
+            font-size: 13px; color: #ccc; font-family: Tahoma, Verdana, Arial, sans-serif; line-height: 1.6; padding: 5px 0;
+            word-break: break-word;
+        }
+        .v3rm-post-body a { color: #cd1818; text-decoration: underline; }
+        .v3rm-post-body a:hover { color: #ff3333; }
+        
+        /* ── Image Rendering Embeds ── */
+        .v3rm-embedded-img {
+            max-width: 100%; height: auto; margin: 10px 0;
+            border: 1px solid #2a2a2a; border-radius: 2px;
+            display: block; background: #151515;
+        }
+
+        .v3rm-category-path { font-size: 11px; color: #888; margin-bottom: 5px; }
+
+        .v3rm-post-footer { padding: 4px 0 2px; display: flex; gap: 6px; align-items: center; }
+        .v3rm-like-btn {
+            background: #161616; display: inline-flex; align-items: center; gap: 5px;
+            padding: 3px 8px; border: 1px solid #222; border-radius: 2px; font-size: 11px; font-weight: 700; color: #aaa;
+        }
+        .v3rm-like-btn .fa-thumbs-o-up { color: #29cb09; }
+        .v3rm-like-btn .fa-thumbs-o-down { color: #b40404; }
+        .v3rm-post-controls {
+            clear: both; background: #161616; border-bottom: 1px solid #202020;
+            padding: 5px 10px; font-size: 12px; color: #666;
+        }
+        .v3rm-edited { font-size: 11px; color: #888; font-style: italic; margin-left: 5px; }
+
+        /* ── Reply indentation — max 3 levels to prevent over-nesting on mobile ── */
+        .v3rm-reply-wrap {
+            margin-left: 20px;
+            border-left: 3px solid #cd1818;
+            margin-top: 0;
+        }
+        .v3rm-reply-wrap .v3rm-reply-wrap {
+            margin-left: 14px;
+            border-left: 3px solid #5a0a0a;
+        }
+        .v3rm-reply-wrap .v3rm-reply-wrap .v3rm-reply-wrap {
+            margin-left: 10px;
+            border-left: 3px solid #2a2a2a;
+        }
+        /* On mobile collapse indent so it doesn't bleed off screen */
+        @media (max-width: 576px) {
+            .v3rm-reply-wrap { margin-left: 10px; }
+            .v3rm-reply-wrap .v3rm-reply-wrap { margin-left: 6px; }
+        }
+        .v3rm-not-found-label {
+            background: #1a1a1a; color: #666; font-size: 11px; font-style: italic;
+            padding: 8px 12px; border-top: 1px solid #2a2a2a;
+        }
+        /* ── Site title typography ── */
+        .v3rm-site-title {
+            font-family: 'Rajdhani', 'Open Sans', sans-serif;
+            font-weight: 700;
+            font-size: 2.6rem;
+            letter-spacing: 2px;
+            color: #fff;
+            text-transform: uppercase;
+        }
+        .v3rm-title-accent {
+            color: #cd1818;
+        }
+        /* Database status line — smaller, dimmer, tight under logo */
+        .v3rm-db-status {
+            font-size: 0.72rem;
+            color: #555;
+            letter-spacing: 0.5px;
+            margin-top: 6px;
+            margin-bottom: 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div id="loading-text" class="text-muted font-weight-bold">Loading local index database...</div>
+    </div>
+
+    <div class="container my-5" id="content">
+        <div class="text-center mb-2 logo-container">
+            <div class="d-inline-block logo-container">
+                <img src="ico.png" alt="V3rmillion Logo" class="img-fluid logo-img" onerror="this.style.display='none'">
+            </div>
+            <p class="v3rm-db-status" id="index-status">Threads mapped: Loading...</p>
+        </div>
+
+        <h1 class="text-center mb-3 v3rm-site-title">V3rmillion <span class="v3rm-title-accent">Index Search</span></h1>
+
+        <div class="row justify-content-center mb-2">
+            <div class="col-md-12">
+                <form action="#" onsubmit="triggerNewSearch(); return false;">
+                    <div class="form-row align-items-center">
+                        
+                        <!-- Box 1: Category Selection -->
+                        <div class="col-lg-4 col-md-6 mb-2">
+                            <label class="small font-weight-bold text-muted mb-1 d-block">1. Forum Category Target</label>
+                            <select id="categoryDropdown" class="form-control filter-select" style="border-radius: 4px !important;">
+                                <option value="__ALL__" selected>All Categories (Entire Archive)</option>
+                                <optgroup label="Socialising">
+                                    <option value="3" data-fid="3">Socialising</option>
+                                    <option value="12" data-fid="12">└ Announcements</option>
+                                    <option value="4" data-fid="4">└ Lounge</option>
+                                    <option value="46" data-fid="46">└└ Forum Games & Giveaways</option>
+                                    <option value="13" data-fid="13">└ User Support</option>
+                                    <option value="5" data-fid="5">└└ Suggestions/Ideas</option>
+                                    <option value="39" data-fid="39">└ Ban Appeals</option>
+                                </optgroup>
+                                <optgroup label="Marketplace">
+                                    <option value="8" data-fid="8">Marketplace</option>
+                                    <option value="65" data-fid="65">└ Marketplace Discussion</option>
+                                    <option value="11" data-fid="11">└ Normal Sellers</option>
+                                    <option value="25" data-fid="25">└ Premium Sellers</option>
+                                    <option value="26" data-fid="26">└ Disputes</option>
+                                </optgroup>
+                                <optgroup label="Media">
+                                    <option value="34" data-fid="34">Media</option>
+                                    <option value="43" data-fid="43">└ Vermillion Missionary</option>
+                                    <option value="35" data-fid="35">└ Graphics</option>
+                                    <option value="50" data-fid="50">└ Music</option>
+                                    <option value="53" data-fid="53">└ Anime & Manga</option>
+                                </optgroup>
+                                <optgroup label="Exploiting">
+                                    <option value="7" data-fid="7">Exploiting</option>
+                                    <option value="10" data-fid="10">└ Roblox</option>
+                                    <option value="68" data-fid="68">└└ Sales & Services</option>
+                                    <option value="56" data-fid="56">└└ Guides, Tuts & Assistance</option>
+                                    <option value="33" data-fid="33">└ General Exploiting</option>
+                                </optgroup>
+                                <optgroup label="Technology">
+                                    <option value="27" data-fid="27">Technology</option>
+                                    <option value="28" data-fid="28">└ Information Security</option>
+                                    <option value="63" data-fid="63">└ Cryptocurrency</option>
+                                    <option value="55" data-fid="55">└ Hardware & Software Discussion</option>
+                                </optgroup>
+                                <optgroup label="Coding">
+                                    <option value="17" data-fid="17">Coding</option>
+                                    <option value="18" data-fid="18">└ General Coding</option>
+                                    <option value="19" data-fid="19">└└ Lua</option>
+                                    <option value="23" data-fid="23">└└ C/C++</option>
+                                    <option value="20" data-fid="20">└└ Python</option>
+                                    <option value="21" data-fid="21">└└ Java & Android</option>
+                                    <option value="67" data-fid="67">└└ Javascript</option>
+                                    <option value="22" data-fid="22">└└ C#</option>
+                                    <option value="24" data-fid="24">└└ Web Development</option>
+                                </optgroup>
+                                <optgroup label="Gaming">
+                                    <option value="6" data-fid="6">Gaming</option>
+                                    <option value="32" data-fid="32">└ General Gaming</option>
+                                    <option value="9" data-fid="9">└└ Roblox</option>
+                                    <option value="31" data-fid="31">└└ Minecraft</option>
+                                    <option value="38" data-fid="38">└└ Counter-Strike</option>
+                                </optgroup>
+                            </select>
+                        </div>
+
+                        <!-- Box 2: Search Type Switcher -->
+                        <div class="col-lg-2 col-md-6 mb-2">
+                            <label class="small font-weight-bold text-muted mb-1 d-block">2. Filter Mode</label>
+                            <select id="searchTarget" class="form-control filter-select" style="border-radius: 4px !important;">
+                                <option value="title" selected>Thread Title</option>
+                                <option value="author_username">Post Author Username</option>
+                                <option value="author_id">Post Author ID</option>
+                            </select>
+                        </div>
+
+                        <!-- Box 3: Text Search Input Field -->
+                        <div class="col-lg-4 col-md-9 mb-2">
+                            <label id="inputLabel" class="small font-weight-bold text-muted mb-1 d-block">3. Search Keywords...</label>
+                            <input type="text" id="searchInput" class="form-control" placeholder="Type keywords here..." style="border-radius: 4px !important;">
+                        </div>
+
+                        <!-- Box 4: Action Submission Trigger Button -->
+                        <div class="col-lg-2 col-md-3 mb-2">
+                            <label class="small font-weight-bold transparent mb-1 d-block" style="visibility: hidden;">4. Action</label>
+                            <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height: calc(1.5em + .75rem + 2px);">Search</button>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mb-4">
+            <div class="col-md-8 text-center">
+                <span id="search-metrics" class="badge badge-dark text-muted font-weight-normal font-italic" style="display:none; background:#111; border: 1px solid #2a2a2a;"></span>
+            </div>
+        </div>
+
+        <div class="row justify-content-center mb-4" id="results"></div>
+        <div class="d-flex justify-content-center mt-4" id="pagination"></div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js@7.0.0/dist/fuse.js"></script>
+
+    <script>
+        const RESULTS_PER_PAGE = 12;
+        let localIndex = null;
+        let sortedResults = [];
+        let currentPage = 1;
+        let fuseInstance = null;
+
+        const DB_NAME = "V3rmillionArchiveDB";
+
+        // fid -> canonical category path (leaf name used in JSON categories arrays)
+        const FID_TO_PATH = {
+            3:  "Socialising",
+            12: "Announcements",
+            4:  "Lounge",
+            46: "Forum Games & Giveaways",
+            13: "User Support",
+            5:  "Suggestions/Ideas",
+            39: "Ban Appeals",
+            8:  "Marketplace",
+            65: "Marketplace Discussion",
+            11: "Normal Sellers",
+            25: "Premium Sellers",
+            26: "Disputes",
+            34: "Media",
+            43: "Vermillion Missionary",
+            35: "Graphics",
+            50: "Music",
+            53: "Anime & Manga",
+            7:  "Exploiting",
+            10: "Roblox",       // Exploiting > Roblox (fid 10)
+            68: "Sales & Services",
+            56: "Guides, Tuts & Assistance",
+            33: "General Exploiting",
+            27: "Technology",
+            28: "Information Security",
+            63: "Cryptocurrency",
+            55: "Hardware & Software Discussion",
+            17: "Coding",
+            18: "General Coding",
+            19: "Lua",
+            23: "C/C++",
+            20: "Python",
+            21: "Java & Android",
+            67: "Javascript",
+            22: "C#",
+            24: "Web Development",
+            6:  "Gaming",
+            32: "General Gaming",
+            9:  "Roblox",       // Gaming > General Gaming > Roblox (fid 9)
+            31: "Minecraft",
+            38: "Counter-Strike",
+        };
+        const STORE_NAME = "IndexStore";
+        const DB_VERSION = 1;
+
+        function openIndexedDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open(DB_NAME, DB_VERSION);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains(STORE_NAME)) db.createObjectStore(STORE_NAME);
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        function getCachedIndex(db) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, "readonly");
+                const req = tx.objectStore(STORE_NAME).get("index_titles");
+                req.onsuccess = () => resolve(req.result || null);
+                req.onerror = () => resolve(null);
+            });
+        }
+
+        function saveIndexToCache(db, data) {
+            return new Promise((resolve) => {
+                const tx = db.transaction(STORE_NAME, "readwrite");
+                const req = tx.objectStore(STORE_NAME).put(data, "index_titles");
+                req.onsuccess = () => resolve(true);
+                req.onerror = () => resolve(false);
+            });
+        }
+
+        async function fetchAndRenderThread(threadId) {
+            try {
+                // Appending ?t=timestamp ensures the URL is always unique
+                const cacheBuster = new Date().getTime();
+                const res = await fetch(`../data/parsed/parsed_thread_${threadId}.json?t=${cacheBuster}`);
+                
+                if (!res.ok) throw new Error();
+                
+                const threadData = await res.json();
+                showThreadViewerModal(threadData, threadId);
+            } catch {
+                alert("Error: Missing or corrupt file path inside parsed/ folder for thread ID: " + threadId);
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", async function () {
+            const loadingScreen = document.getElementById('loading-screen');
+            const content = document.getElementById('content');
+            const loadingText = document.getElementById('loading-text');
+            const statusText = document.getElementById('index-status');
+
+            const searchTargetSelect = document.getElementById("searchTarget");
+            const searchInput = document.getElementById("searchInput");
+            const inputLabel = document.getElementById("inputLabel");
+
+            searchTargetSelect.addEventListener("change", function () {
+                if (searchTargetSelect.value === "author_username") {
+                    inputLabel.innerText = "3. Target Username";
+                    searchInput.placeholder = "e.g., moonwalk";
+                } else if (searchTargetSelect.value === "author_id") {
+                    inputLabel.innerText = "3. Target Author ID";
+                    searchInput.placeholder = "e.g., pid_7919002";
+                } else {
+                    inputLabel.innerText = "3. Search Keywords...";
+                    searchInput.placeholder = "Type keywords here...";
+                }
+            });
+
+            try {
+                const db = await openIndexedDB();
+                localIndex = await getCachedIndex(db);
+
+                if (localIndex) {
+                    setupSearchEngine();
+                    statusText.innerHTML = `Database Loaded from Cache. Threads Mapped: ${Object.keys(localIndex).length.toLocaleString()}`;
+                    content.style.display = 'block';
+                    loadingScreen.style.display = 'none';
+                    checkDeepLinkingParameter();
+                    return;
+                }
+
+                loadingText.innerHTML = "Cache empty. Initializing high-speed database stream...";
+
+                const response = await fetch('../data/index/titles.json');
+                if (!response.ok) throw new Error("Network issue accessing titles.json");
+
+                // 1. Hook into the browser's underlying data stream
+                const reader = response.body.getReader();
+                const contentLength = +response.headers.get('Content-Length') || 0;
+
+                let receivedLength = 0;
+                let chunks = [];
+
+                // 2. Pull down raw binary chunks smoothly without locking the browser UI
+                while(true) {
+                    const {done, value} = await reader.read();
+                    if (done) break;
+                    
+                    chunks.push(value);
+                    receivedLength += value.length;
+                    
+                    // Convert to MB for a real-time progress counter
+                    const megaBytes = (receivedLength / (1024 * 1024)).toFixed(1);
+                    loadingText.innerHTML = `Streaming archive database: <b>${megaBytes} MB</b> downloaded...`;
+                }
+
+                // 3. Assemble the pieces cleanly
+                loadingText.innerHTML = "Assembling streaming data blocks...";
+                let chunksAll = new Uint8Array(receivedLength);
+                let position = 0;
+                for(let chunk of chunks) {
+                    chunksAll.set(chunk, position);
+                    position += chunk.length;
+                }
+
+                // 4. Decode text and parse to memory
+                loadingText.innerHTML = "Finalizing search memory mapping...";
+                const resultText = new TextDecoder("utf-8").decode(chunksAll);
+                localIndex = JSON.parse(resultText);
+
+                // 5. Commit straight away into local IndexedDB
+                await saveIndexToCache(db, localIndex);
+
+                setupSearchEngine();
+                statusText.innerHTML = `Database Cached & Loaded. Threads Mapped: ${Object.keys(localIndex).length.toLocaleString()}`;
+                content.style.display = 'block';
+                loadingScreen.style.display = 'none';
+                checkDeepLinkingParameter();
+
+            } catch (error) {
+                console.error("Database lifecycle exception:", error);
+                loadingText.innerHTML = `<span class="text-danger">Failed to initialize search database.<br>Verify data/index/titles.json exists.</span>`;
+            }
+        });
+
+        function checkDeepLinkingParameter() {
+            const urlParams = new URLSearchParams(window.location.search);
+
+            // Thread deep-link takes priority
+            const targetThreadId = urlParams.get('id');
+            if (targetThreadId) {
+                fetchAndRenderThread(targetThreadId);
+                return;
+            }
+
+            // Restore search state from URL params: ?cat=10&mode=title&q=hoopz&page=2
+            const catFid  = urlParams.get('cat');
+            const mode    = urlParams.get('mode');
+            const query   = urlParams.get('q');
+            const page    = parseInt(urlParams.get('page') || '1', 10);
+
+            if (catFid) {
+                const catDropdown = document.getElementById('categoryDropdown');
+                for (const opt of catDropdown.options) {
+                    if (opt.value === catFid) { catDropdown.value = catFid; break; }
+                }
+            }
+            if (mode) {
+                const modeSelect = document.getElementById('searchTarget');
+                modeSelect.value = mode;
+                modeSelect.dispatchEvent(new Event('change'));
+            }
+            if (query) {
+                document.getElementById('searchInput').value = query;
+            }
+            if (catFid || query || page > 1) {
+                executeSearch(isNaN(page) ? 1 : page, false); // false = avoid adding history on deep links
+            }
+        }
+
+        function setupSearchEngine() {
+            const fuseData = Object.keys(localIndex).map(id => ({
+                id: id,
+                title: localIndex[id].title || "",
+                author: localIndex[id].author || "Unknown",
+                author_id: localIndex[id].author_id || "N/A",
+                category: (localIndex[id].categories || []).map(x => x.trim()).join(" / ")
+            }));
+
+            fuseInstance = new Fuse(fuseData, {
+                keys: ["title", "author", "author_id", "category"],
+                threshold: 0.4,
+                distance: 100,
+                includeScore: true,
+                ignoreLocation: true
+            });
+        }
+
+        // Help wrapper to distinguish fresh manual searches from programmatic page flips
+        function triggerNewSearch() {
+            executeSearch(1, true);
+        }
+
+        function executeSearch(page = 1, appendHistory = true) {
+            currentPage = page;
+            const selectedCategory = document.getElementById("categoryDropdown").value.trim();
+            const searchTarget = document.getElementById("searchTarget").value;
+            const queryInput = document.getElementById("searchInput").value.trim();
+
+            const results = document.getElementById("results");
+            const pagination = document.getElementById("pagination");
+            const metrics = document.getElementById("search-metrics");
+
+            results.innerHTML = "";
+            pagination.innerHTML = "";
+            metrics.style.display = "none";
+
+            if (!fuseInstance) return;
+
+            // Push search parameters cleanly into history stream if true
+            if (appendHistory) {
+                const params = new URLSearchParams();
+                if (selectedCategory !== '__ALL__') params.set('cat', selectedCategory);
+                if (searchTarget !== 'title')       params.set('mode', searchTarget);
+                if (queryInput)                     params.set('q', queryInput);
+                if (page > 1)                       params.set('page', page);
+                const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+                window.history.pushState({ type: 'search', page: page }, '', newUrl);
+            }
+
+            try {
+                const start = performance.now();
+                let matchedResults = [];
+
+                let baseItems = [];
+                if (selectedCategory === "__ALL__") {
+                    baseItems = Object.keys(localIndex).map(id => ({
+                        id: id,
+                        title: localIndex[id].title || "",
+                        author: localIndex[id].author || "Unknown",
+                        author_id: localIndex[id].author_id || "N/A",
+                        category: (localIndex[id].categories || []).map(x => x.trim()).join(" / ")
+                    }));
+                } else {
+                    const fidNum = parseInt(selectedCategory, 10);
+                    const leafName = (FID_TO_PATH[fidNum] || "").toLowerCase().trim();
+                    Object.keys(localIndex).forEach(id => {
+                        const threadCats = (localIndex[id].categories || []).map(c => c.toLowerCase().trim());
+                        if (leafName && threadCats.includes(leafName)) {
+                            baseItems.push({
+                                id: id,
+                                title: localIndex[id].title || "",
+                                author: localIndex[id].author || "Unknown",
+                                author_id: localIndex[id].author_id || "N/A",
+                                category: (localIndex[id].categories || []).map(x => x.trim()).join(" / ")
+                            });
+                        }
+                    });
+                }
+
+                if (queryInput) {
+                    const lowerQuery = queryInput.toLowerCase();
+                    
+                    if (searchTarget === "author_username") {
+                        const authorSearchInstance = new Fuse(baseItems, {
+                            keys: ["author"], threshold: 0.35, distance: 100, ignoreLocation: true, includeScore: true
+                        });
+                        const rawMatches = authorSearchInstance.search(queryInput);
+                        matchedResults = rawMatches.map(match => {
+                            let score = match.score ?? 1;
+                            if (match.item.author.toLowerCase() === lowerQuery) score -= 0.8; 
+                            else if (match.item.author.toLowerCase().includes(lowerQuery)) score -= 0.5;
+                            return { id: match.item.id, title: match.item.title, finalScore: score };
+                        });
+                    } else if (searchTarget === "author_id") {
+                        const idSearchInstance = new Fuse(baseItems, {
+                            keys: ["author_id"], threshold: 0.2, distance: 100, ignoreLocation: true, includeScore: true
+                        });
+                        const rawMatches = idSearchInstance.search(queryInput);
+                        matchedResults = rawMatches.map(match => {
+                            let score = match.score ?? 1;
+                            if (match.item.author_id.toLowerCase() === lowerQuery) score -= 0.8; 
+                            return { id: match.item.id, title: match.item.title, finalScore: score };
+                        });
+                    } else {
+                        const titleSearchInstance = new Fuse(baseItems, {
+                            keys: ["title"], threshold: 0.4, distance: 100, ignoreLocation: true, includeScore: true
+                        });
+                        const rawMatches = titleSearchInstance.search(queryInput);
+                        matchedResults = rawMatches.map(match => {
+                            let score = match.score ?? 1;
+                            if (match.item.title.toLowerCase().includes(lowerQuery)) score -= 0.6;
+                            return { id: match.item.id, title: match.item.title, finalScore: score };
+                        });
+                    }
+                    matchedResults.sort((a, b) => a.finalScore - b.finalScore);
+                } else {
+                    matchedResults = baseItems.map(item => ({ id: item.id, title: item.title, finalScore: 0 }));
+                }
+
+                sortedResults = matchedResults.map(x => ({ id: x.id, title: x.title }));
+                const ms = (performance.now() - start).toFixed(2);
+
+                if (!sortedResults.length) {
+                    results.innerHTML = `<div class='col-12'><p class='text-center text-muted my-4'>No results found matching those parameters inside this selection.</p></div>`;
+                    metrics.innerHTML = `Search completed in ${ms} ms (0 records matched)`;
+                    metrics.style.display = "inline-block";
+                    return;
+                }
+
+                metrics.innerHTML = `Found ${sortedResults.length.toLocaleString()} matching archive records in ${ms} ms`;
+                metrics.style.display = "inline-block";
+                renderPage(currentPage, false); // false = do not run replaceState while compiling page rows
+
+            } catch (err) {
+                console.error(err);
+                results.innerHTML = `<div class='col-12'><p class='text-center text-danger my-4'>Internal search processing exception occurred.</p></div>`;
+            }
+        }
+
+        function renderPage(page, appendHistory = true) {
+            currentPage = page;
+            const resultsContainer = document.getElementById("results");
+            resultsContainer.innerHTML = "";
+
+            if (appendHistory) {
+                const params = new URLSearchParams(window.location.search);
+                if (page > 1) { params.set('page', page); } else { params.delete('page'); }
+                const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+                window.history.pushState({ type: 'search', page: page }, '', newUrl);
+            }
+
+            const startOffset = (page - 1) * RESULTS_PER_PAGE;
+            const activePageSlice = sortedResults.slice(startOffset, Math.min(startOffset + RESULTS_PER_PAGE, sortedResults.length));
+
+            activePageSlice.forEach(thread => {
+                const cardWrapper = document.createElement("div");
+                cardWrapper.className = "col-md-6 col-lg-4 mb-4";
+                cardWrapper.innerHTML = `
+                    <div class="card h-100 shadow-sm">
+                      <div class="card-body d-flex flex-column">
+                        <div class="mb-2"><span class="thread-id-badge font-weight-bold">ID: ${thread.id}</span></div>
+                        <h5 class="card-title mb-3">${escapeHTML(thread.title.replace(" - V3rmillion", "").trim())}</h5>
+                        <p class="text-muted small mb-4">Location: <code>data/parsed/parsed_thread_${thread.id}.json</code></p>
+                        <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Thread</button>
+                        <a href="../data/parsed/parsed_thread_${thread.id}.json" target="_blank" class="btn btn-link btn-sm mt-1 text-center small text-muted">Open Raw JSON</a>
+                      </div>
+                    </div>`;
+                
+                cardWrapper.querySelector(".view-json-btn").onclick = function() {
+                    const params = new URLSearchParams(window.location.search);
+                    params.set('id', thread.id);
+                    const newUrl = window.location.pathname + '?' + params.toString();
+                    window.history.pushState({ type: 'thread', id: thread.id }, '', newUrl);
+                    fetchAndRenderThread(thread.id);
+                };
+                resultsContainer.appendChild(cardWrapper);
+            });
+            generatePaginationControls();
+        }
+
+        let postCounter = 0;
+
+        function escapeHTML(str) {
+            return str
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        const IMAGE_HOSTS = new Set([
+            'i.imgur.com',              // direct imgur CDN
+            'cdn.discordapp.com',       // direct Discord attachments
+            'media.discordapp.net',     // Discord media proxy
+            'i.redd.it',                // Reddit image CDN
+            'preview.redd.it',          // Reddit previews
+            'pbs.twimg.com',            // Twitter/X media CDN
+            'i.gyazo.com',              // Gyazo direct images
+            'cdn.gyazo.com',
+            'i.prntscr.com',            // Lightshot image CDN
+            'images-ext-1.discordapp.net',
+            'images-ext-2.discordapp.net'
+        ]);
+        const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'avif']);
+
+        function isImageUrl(raw) {
+            try {
+                const url = new URL(raw);
+                if (IMAGE_HOSTS.has(url.hostname)) return true;
+
+                const ext = url.pathname.split('.').pop().toLowerCase();
+                if (IMAGE_EXTS.has(ext)) return true;
+
+                // Check decoded query param values as URLs
+                for (const val of url.searchParams.values()) {
+                    try {
+                        const inner = new URL(decodeURIComponent(val));
+                        if (IMAGE_HOSTS.has(inner.hostname)) return true;
+                        const innerExt = inner.pathname.split('.').pop().toLowerCase();
+                        if (IMAGE_EXTS.has(innerExt)) return true;
+                    } catch {}
+                }
+
+                // Last resort: check if the full URL string ends with an image extension (before query params)
+                const fullPath = url.pathname + url.search;
+                const lastExt = fullPath.split('.').pop().split('&')[0].split('?')[0].toLowerCase();
+                if (IMAGE_EXTS.has(lastExt)) return true;
+
+                return false;
+            } catch {
+                return false;
+            }
+        }
+
+        function formatPostBody(rawText, threadLang = "lua") {
+            if (!rawText) return '';
+
+            // Strip internal v3rmillion image assets
+            const urlParts = rawText.split(/(https?:\/\/\S+)/g);
+            rawText = urlParts.filter(part => {
+                return !part.startsWith("https://v3rmillion.net/images/");
+            }).join('');
+
+            const LANG_MAP = {
+                'lua': 'lua', 'python': 'python', 'javascript': 'javascript',
+                'java': 'java', 'cpp': 'cpp', 'c++': 'cpp', 'c': 'c',
+                'csharp': 'csharp', 'c#': 'csharp', 'ruby': 'ruby',
+                'php': 'php', 'bash': 'bash', 'shell': 'shell', 'sql': 'sql',
+            };
+
+            function makeCodeBlock(rawCode, langHint) {
+                const hljsLang = LANG_MAP[(langHint || '').toLowerCase().trim()] || null;
+                let result;
+                if (typeof hljs !== 'undefined') {
+                    result = hljsLang && hljs.getLanguage(hljsLang)
+                        ? hljs.highlight(rawCode, { language: hljsLang })
+                        : hljs.highlightAuto(rawCode);
+                }
+                const highlightedHTML = result ? result.value : escapeHTML(rawCode);
+                const detectedLang = (result?.language || hljsLang || 'code').toUpperCase();
+
+                return `<div class="v3rm-code-container" style="margin:12px 0;border:1px solid #2a2a2a;border-radius:4px;overflow:hidden;">
+                    <div class="v3rm-code-header" style="background:#161616;color:#aaa;padding:6px 12px;font-family:monospace;font-size:11px;border-bottom:1px solid #222;">Code: ${detectedLang}</div>
+                    <pre style="margin:0;"><code class="hljs" style="padding:12px;display:block;overflow-x:auto;background:#050505;font-family:Consolas,Monaco,monospace;font-size:13px;line-height:1.5;">${highlightedHTML}</code></pre>
+                </div>`;
+            }
+
+            function renderTextSegment(txt) {
+                if (!txt) return '';
+
+                // Collapse single mid-sentence newlines into a space without doubling up
+                txt = txt.replace(/([^\n])\n([^\n])/g, (match, a, b) => {
+                    const left = a.trimEnd();
+                    const right = b.trimStart();
+                    return `${left} ${right}`;
+                });
+
+                // Process URL tokens
+                const tokens = txt.split(/(https?:\/\/\S+)/g);
+                txt = tokens.map((token, i) => {
+                    if (i % 2 === 0) return token;
+                    const u = token.replace(/['";].*$/, '').trim();
+                    if (!u) return token;
+
+                    // Rewrite v3rmillion thread links to local archive
+                    if (u.includes('v3rmillion.net/showthread.php')) {
+                        try {
+                            const url = new URL(u);
+                            const tid = url.searchParams.get('tid');
+                            if (tid) {
+                                const base = window.location.origin + window.location.pathname;
+                                return `[Thread #${tid}](${base}?id=${tid})`;
+                            }
+                        } catch {}
+                    }
+
+                    // Embed images as their own block
+                    if (isImageUrl(u)) return `\n\n![](${u})\n\n`;
+
+                    // Leave all other URLs for marked to handle as autolinks
+                    return u;
+                }).join('');
+
+                return marked.parse(txt);
+            }
+
+            // Split on CODE_START / CODE_END markers
+            const parts = rawText.split(/\s*\[CODE_START\]\s*|\s*\[CODE_END\]\s*/);
+
+            if (parts.length === 1) return renderTextSegment(rawText);
+
+            let html = '';
+            if (parts[0]) html += renderTextSegment(parts[0]);
+
+            for (let i = 1; i < parts.length; i += 2) {
+                const code = parts[i] || '';
+                const textAfter = parts[i + 1] || '';
+                html += makeCodeBlock(code, threadLang);
+                if (textAfter) html += renderTextSegment(textAfter);
+            }
+
+            return html;
+        }
+        
+        function parseFallbackDate(post) {
+            if (post.post_date && post.post_date.trim() !== "") return post.post_date;
+            if (post.last_edit && post.last_edit.includes("modified:")) {
+                const match = post.last_edit.match(/modified:\s*([^)]+)/i);
+                if (match && match[1]) return match[1].trim();
+            }
+            return "Archived Post";
+        }
+
+        function buildPostHTML(post, isOP = false, depth = 0) {
+            postCounter++;
+            const num = postCounter;
+            
+            let cleanDescription = post.post_description || '';
+            console.log('raw post_description:', JSON.stringify(cleanDescription).slice(0, 200));
+
+            const authorName = post.author_username || 'Unknown';
+            const displayDate = parseFallbackDate(post);
+
+            let editNotice = "";
+            const postDateStr = post.post_date ? post.post_date.trim() : "";
+            const lastEditStr = post.last_edit ? post.last_edit.trim() : "";
+
+            if (lastEditStr && postDateStr && lastEditStr !== postDateStr) {
+                editNotice = `(This post was last modified: ${lastEditStr} by ${authorName})`;
+            }
+
+            const formattedContent = formatPostBody(cleanDescription);
+
+            const repliesHTML = post.replies && post.replies.length > 0
+                ? `<div class="v3rm-reply-wrap">${post.replies.map(r => buildPostHTML(r, false, depth + 1)).join('')}</div>`
+                : '';
+
+            return `
+                <div class="v3rm-post">
+                    <div class="v3rm-post-head">
+                        <span class="v3rm-post-date-wrapper">
+                            <span>${displayDate} by ${escapeHTML(authorName)}</span>
+                            ${editNotice ? ` <span class="v3rm-edited">${escapeHTML(editNotice)}</span>` : ''}
+                        </span>
+                        <span class="v3rm-post-num">#${num}</span>
+                    </div>
+                    <div class="v3rm-post-author">
+                        <div class="w-100 d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="v3rm-author-name ${isOP ? 'op' : ''}">
+                                    <strong>${escapeHTML(authorName)}</strong>
+                                    ${isOP ? ' <span style="font-size:10px;color:#888;">[OP]</span>' : ''}
+                                </div>
+                                <div class="v3rm-author-stats">
+                                    Author ID: <span style="color:#aaa;">${escapeHTML(post.author_id || 'N/A')}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="v3rm-post-content">
+                        <div class="v3rm-post-body">${formattedContent}</div>
+                        <div class="v3rm-post-footer">
+                            <span class="v3rm-like-btn"><i class="fa fa-thumbs-o-up"></i> ${escapeHTML(post.likes || '0')}</span>
+                            <span class="v3rm-like-btn"><i class="fa fa-thumbs-o-down"></i> ${escapeHTML(post.dislikes || '0')}</span>
+                        </div>
+                    </div>
+                    <div class="v3rm-post-controls">
+                        ${post.replied_to ? `<span style="color:#888;font-size:11px;">↩ Reply to <strong style="color:#cd1818;">${escapeHTML(post.replied_to)}</strong> (${escapeHTML(post.replied_to_post_date || '')})</span>` : ''}
+                    </div>
+                </div>
+                ${repliesHTML}`;
+        }
+
+        function showThreadViewerModal(data, id = "") {
+            // Remove any loose modal overlays to avoid duplication bugs
+            const existing = document.querySelector('.viewer-overlay');
+            if (existing) existing.remove();
+
+            postCounter = 0;
+            const overlay = document.createElement("div");
+            overlay.className = "viewer-overlay";
+
+            const cleanTitle = data.title ? data.title.replace(" - V3rmillion", "").trim() : "Untitled Thread Archive";
+            const categoryBreadcrumbs = data.categories && data.categories.length > 0 ? data.categories.join(" » ") : "";
+
+            let postsHTML = '';
+            if (data.thread_content) {
+                postsHTML += buildPostHTML(data.thread_content, true, 0);
+            }
+            if (data.replies_to_not_found_posts && data.replies_to_not_found_posts.length > 0) {
+                postsHTML += `<div class="v3rm-not-found-label">— ${data.replies_to_not_found_posts.length} reply/replies to posts not found in archive —</div>`;
+                postsHTML += data.replies_to_not_found_posts.map(r => buildPostHTML(r, false, 0)).join('');
+            }
+
+            overlay.innerHTML = `
+                <div class="viewer-card">
+                    <div class="viewer-header">
+                        <div style="overflow:hidden; flex-grow: 1;">
+                            <div class="d-flex align-items-center gap-2" style="gap: 10px;">
+                                <div class="viewer-header-title" title="${escapeHTML(cleanTitle)}" style="max-width: 80%;">${escapeHTML(cleanTitle)}</div>
+                                ${id ? `<button class="copy-link-btn" id="modal-copy-btn" data-thread-id="${id}"><i class="fa fa-link"></i> Copy Link</button>` : ''}
+                            </div>
+                            ${categoryBreadcrumbs ? `<div class="v3rm-make-path v3rm-category-path" style="margin-top: 2px;">${escapeHTML(categoryBreadcrumbs)}</div>` : ''}
+                        </div>
+                        <button class="viewer-close-btn" id="close-modal-btn">✕ Close</button>
+                    </div>
+                    <div class="viewer-body">
+                        ${postsHTML || '<p style="color:#666;padding:20px;text-align:center;">No readable body records found inside file.</p>'}
+                    </div>
+                </div>`;
+
+            document.body.appendChild(overlay);
+
+            const copyBtn = overlay.querySelector('#modal-copy-btn');
+            if (copyBtn) {
+                copyBtn.onclick = function() {
+                    const threadId = this.getAttribute('data-thread-id');
+                    const shareUrl = window.location.origin + window.location.pathname + '?id=' + threadId;
+                    
+                    navigator.clipboard.writeText(shareUrl).then(() => {
+                        copyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
+                        setTimeout(() => {
+                            copyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link';
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Failed to copy text: ', err);
+                    });
+                };
+            }
+
+            // Instead of wiping history on close, let browser step backward natively
+            const clearUrlParam = () => {
+                const params = new URLSearchParams(window.location.search);
+                if (params.has('id')) {
+                    // If history state length is 1 or there is no previous internal history item, default back safely
+                    if (window.history.state === null && document.referrer === "") {
+                        window.location.href = `${window.location.origin}/search.html`;
+                    } else {
+                        window.history.back();
+                    }
+                } else {
+                    overlay.remove();
+                }
+            };
+
+            overlay.querySelector('#close-modal-btn').onclick = clearUrlParam;
+            overlay.addEventListener('click', (e) => { if (e.target === overlay) clearUrlParam(); });
+        }
+
+        function generatePaginationControls() {
+            const paginationContainer = document.getElementById("pagination");
+            paginationContainer.innerHTML = "";
+            const totalPagesCount = Math.ceil(sortedResults.length / RESULTS_PER_PAGE);
+            if (totalPagesCount <= 1) return;
+
+            const paginationList = document.createElement("ul");
+            paginationList.classList.add("pagination", "flex-wrap", "justify-content-center");
+
+            const prevItem = document.createElement("li");
+            prevItem.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+            prevItem.innerHTML = `<a class="page-link" href="#">Previous</a>`;
+            prevItem.onclick = (e) => { e.preventDefault(); if (currentPage > 1) renderPage(currentPage - 1, true); };
+            paginationList.appendChild(prevItem);
+
+            let startBtn = Math.max(1, currentPage - 3);
+            let endBtn = Math.min(totalPagesCount, startBtn + 6);
+            if (endBtn - startBtn < 6) startBtn = Math.max(1, endBtn - 6);
+
+            for (let i = startBtn; i <= endBtn; i++) {
+                const pageItem = document.createElement("li");
+                pageItem.className = `page-item ${currentPage === i ? 'active' : ''}`;
+                pageItem.innerHTML = `<a class="page-link" href="#">${i}</a>`;
+                pageItem.onclick = (e) => { e.preventDefault(); renderPage(i, true); };
+                paginationList.appendChild(pageItem);
+            }
+
+            const nextItem = document.createElement("li");
+            nextItem.className = `page-item ${currentPage === totalPagesCount ? 'disabled' : ''}`;
+            nextItem.innerHTML = `<a class="page-link" href="#">Next</a>`;
+            nextItem.onclick = (e) => { e.preventDefault(); if (currentPage < totalPagesCount) renderPage(currentPage + 1, true); };
+            paginationList.appendChild(nextItem);
+
+            paginationContainer.appendChild(paginationList);
+        }
+
+        // Native back/forward window listener mapping state updates
+        window.addEventListener('popstate', async function(e) {
+            const params = new URLSearchParams(window.location.search);
+            const threadId = params.get('id');
+
+            // Synchronize modal instances across state steps
+            const existing = document.querySelector('.viewer-overlay');
+            if (existing) existing.remove();
+
+            if (threadId) {
+                await fetchAndRenderThread(threadId);
+            } else {
+                const cat   = params.get('cat') || '__ALL__';
+                const mode  = params.get('mode') || 'title';
+                const query = params.get('q') || '';
+                const page  = parseInt(params.get('page') || '1', 10);
+
+                // Re-sync input configurations to match structural values
+                document.getElementById('categoryDropdown').value = cat;
+                
+                const modeSelect = document.getElementById('searchTarget');
+                modeSelect.value = mode;
+                modeSelect.dispatchEvent(new Event('change'));
+                
+                document.getElementById('searchInput').value = query;
+
+                // Fire search pipeline without building redundant history items
+                if (fuseInstance) {
+                    executeSearch(isNaN(page) ? 1 : page, false);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

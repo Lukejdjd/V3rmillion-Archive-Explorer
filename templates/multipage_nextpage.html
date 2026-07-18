@@ -1,0 +1,19 @@
+<a href="{$page_url}" class="pagination_next">{$lang->next} &raquo;</a>
+<div class="popup_menu drop_go_page" style="display: none;">
+	<form action="{$page_url}" method="post">
+		<label for="page">Jump to page:</label> <input type="text" class="textbox" name="page" value="{$i}" size="4">
+		<input type="submit" class="button" value="Go">
+	</form>
+</div>
+<a href="javascript:;" class="go_page" title="Jump to page"><img src="/images/arrow_down.png" alt="Jump to page"></a>&nbsp;
+<script type="text/javascript">
+	var go_page = 'go_page_' + $(".go_page").length;
+	$(".go_page").last().attr('id', go_page);
+	$(".drop_go_page").last().attr('id', go_page + '_popup');
+	$('#' + go_page).popupMenu(false).click(function() {
+		var drop_go_page = $(this).prev('.drop_go_page');
+		if (drop_go_page.is(':visible')) {
+			drop_go_page.find('.textbox').focus();
+		}
+	});
+</script>

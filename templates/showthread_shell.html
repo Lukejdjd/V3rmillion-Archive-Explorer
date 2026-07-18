@@ -1,0 +1,54 @@
+<div class="v3rm-showthread-archive">
+<style>
+  .thread_head {
+    background: #1a1a1a;
+    width: 100%;
+    border-bottom: 5px solid #cd1818;
+  }
+  .thread_title {
+    color: #fff;
+    font-size: 24px;
+    font-weight: 900;
+  }
+  .thread_sub {
+    display: none;
+    background: #303030;
+    padding: 10px;
+  }
+  .v3rm-threaded-replies {
+    margin-top: 0;
+    padding-left: 0;
+  }
+  .v3rm-not-found-label {
+    background: #1a1a1a;
+    color: #888;
+    font-size: 11px;
+    font-style: italic;
+    padding: 8px 12px;
+    border-top: 1px solid #333;
+  }
+</style>
+<div class="smalltext" style="padding:4px 10px;color:#888;">{$breadcrumb}</div>
+<table border="0" cellspacing="0" cellpadding="10" class="thread_head" style="width:100%;">
+  <tr>
+    <td>
+      <div class="thread_title">{$thread.displayprefix}{$thread.subject}</div>
+    </td>
+    <td class="align_right" style="text-align:right;vertical-align:middle;">
+      {$pagination_top}
+    </td>
+  </tr>
+</table>
+<table border="0" cellspacing="0" cellpadding="10" class="tborder tfixed clear" style="width:100%;">
+  <tr>
+    <td id="posts_container">
+      <div id="posts">{$posts}</div>
+    </td>
+  </tr>
+  <tr>
+    <td class="tfoot">
+      {$pagination_bottom}
+    </td>
+  </tr>
+</table>
+</div>

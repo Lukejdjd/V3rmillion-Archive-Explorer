@@ -1,0 +1,8 @@
+services:
+  iframely:
+    image: jolt/iframely:latest
+    ports:
+      - "8061:8061"
+    volumes:
+      - ./iframely/config.local.cjs:/iframely/config.local.cjs:ro
+    restart: unless-stopped

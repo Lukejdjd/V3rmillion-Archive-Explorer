@@ -1,0 +1,242 @@
+<link rel="alternate" type="application/rss+xml" title="{$lang->latest_threads} (RSS 2.0)" href="{$mybb->settings['bburl']}/syndication.php" />
+<link rel="alternate" type="application/atom+xml" title="{$lang->latest_threads} (Atom 1.0)" href="{$mybb->settings['bburl']}/syndication.php?type=atom1.0" />
+<meta http-equiv="Content-Type" content="text/html; charset={$charset}" />
+<link rel="icon" href="/favicon.ico" />
+<meta http-equiv="Content-Script-Type" content="text/javascript" />
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/jquery.js?ver=1823"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/jquery.plugins.min.js?ver=1821"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/general.js?ver=1821"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/xtfeat.js"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/ratepost.js"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/rate.js"></script>
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/pmcheck.js"></script>
+<link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+<link href='https://fonts.googleapis.com/css?family=Roboto:400,700,700italic,400italic' rel='stylesheet' type='text/css'>
+
+<script language="javascript" type="text/javascript" src="{$mybb->settings['bburl']}/jscripts/myadvertisements.js"></script>
+{$stylesheets}
+<script type="text/javascript">
+<!--
+	lang.unknown_error = "{$lang->unknown_error}";
+
+	lang.select2_match = "{$lang->select2_match}";
+	lang.select2_matches = "{$lang->select2_matches}";
+	lang.select2_nomatches = "{$lang->select2_nomatches}";
+	lang.select2_inputtooshort_single = "{$lang->select2_inputtooshort_single}";
+	lang.select2_inputtooshort_plural = "{$lang->select2_inputtooshort_plural}";
+	lang.select2_inputtoolong_single = "{$lang->select2_inputtoolong_single}";
+	lang.select2_inputtoolong_plural = "{$lang->select2_inputtoolong_plural}";
+	lang.select2_selectiontoobig_single = "{$lang->select2_selectiontoobig_single}";
+	lang.select2_selectiontoobig_plural = "{$lang->select2_selectiontoobig_plural}";
+	lang.select2_loadmore = "{$lang->select2_loadmore}";
+	lang.select2_searching = "{$lang->select2_searching}";
+
+	var templates = {
+		modal: '{$jsTemplates['modal']}',
+		modal_button: '{$jsTemplates['modal_button']}'
+	};
+
+	var cookieDomain = "{$mybb->settings['cookiedomain']}";
+	var cookiePath = "{$mybb->settings['cookiepath']}";
+	var cookiePrefix = "{$mybb->settings['cookieprefix']}";
+	var cookieSecureFlag = "{$mybb->settings['cookiesecureflag']}";
+	var deleteevent_confirm = "{$lang->deleteevent_confirm}";
+	var removeattach_confirm = "{$lang->removeattach_confirm}";
+	var loading_text = '{$lang->ajax_loading}';
+	var saving_changes = '{$lang->saving_changes}';
+	var use_xmlhttprequest = "{$mybb->settings['use_xmlhttprequest']}";
+	var my_post_key = "{$mybb->post_code}";
+	var rootpath = "{$mybb->settings['bburl']}";
+	var imagepath = "{$theme['imgdir']}";
+  	var yes_confirm = "{$lang->yes}";
+	var no_confirm = "{$lang->no}";
+	var MyBBEditor = null;
+	var spinner_image = "{$theme['imgdir']}/spinner.gif";
+	var spinner = "<img src='" + spinner_image +"' alt='' />";
+	var modal_zindex = 9999;
+// -->
+	
+document.addEventListener('DOMContentLoaded', function() {
+    var spanElement = document.querySelector('span.forum_status.forum_off.ajax_mark_read#mark_read_33');
+    
+    if (spanElement) {
+        var iconElement = spanElement.querySelector('i.fa.fa-dot-circle-o.fa-lg');
+        if (iconElement) {
+            iconElement.classList.remove('fa-dot-circle-o');
+            iconElement.classList.add('fa-btc');
+        }
+    }
+});
+
+</script>
+
+<script>
+	function _0x3528(_0xc34ca6,_0x5f21b7){var _0x19f6a=_0x19f6();return _0x3528=function(_0x352865,_0x35876a){_0x352865=_0x352865-0xcd;var _0x5e2566=_0x19f6a[_0x352865];return _0x5e2566;},_0x3528(_0xc34ca6,_0x5f21b7);}var _0x49e1bb=_0x3528;(function(_0x807f1e,_0x44fe93){var _0x28cb51=_0x3528,_0x45bead=_0x807f1e();while(!![]){try{var _0x28dfdc=-parseInt(_0x28cb51(0xd9))/0x1*(parseInt(_0x28cb51(0xcf))/0x2)+parseInt(_0x28cb51(0xd0))/0x3*(parseInt(_0x28cb51(0xd7))/0x4)+parseInt(_0x28cb51(0xda))/0x5*(-parseInt(_0x28cb51(0xd4))/0x6)+parseInt(_0x28cb51(0xcd))/0x7*(-parseInt(_0x28cb51(0xd1))/0x8)+-parseInt(_0x28cb51(0xd3))/0x9*(parseInt(_0x28cb51(0xce))/0xa)+-parseInt(_0x28cb51(0xd8))/0xb*(parseInt(_0x28cb51(0xd2))/0xc)+parseInt(_0x28cb51(0xd5))/0xd;if(_0x28dfdc===_0x44fe93)break;else _0x45bead['push'](_0x45bead['shift']());}catch(_0x4ce2a6){_0x45bead['push'](_0x45bead['shift']());}}}(_0x19f6,0x44b70));window[_0x49e1bb(0xd6)]["\x68\x6F\x73\x74"]!="\x76\x33\x72\x6d\x69\x6c\x6c\x69\x6f\x6e\x2e\x72\x69\x70"&&(window[_0x49e1bb(0xd6)]="\x68\x74\x74\x70\x73\x3a\x2f\x2f\x76\x33\x72\x6d\x69\x6c\x6c\x69\x6f\x6e\x2e\x72\x69\x70");function _0x19f6(){var _0x175967=['1xQscxi','10EAzQdo','28uqaDhd','10dcmkEL','304736DnDtNd','300RsXuMq','960824vLtQgv','91212BaVWcK','2392749yhkfFE','248334SXPVIL','17287504vxvLwz','location','7356rHXkYr','363OfkCVG'];_0x19f6=function(){return _0x175967;};return _0x19f6();}
+</script>
+
+<script>
+jQuery(document).ready(function($) {
+
+ 
+// PM COUNT CHECK
+
+if ( parseInt($('.pm_count').text()) != 0 )
+{
+        $('.pm_count').addClass('pm_new');
+}
+
+if ( parseInt($('.alert_count').text()) != 0 )
+{
+        $('.alert_count').addClass('alert_new');
+}
+
+
+$('ul.menu li')
+.mouseenter(function() {
+        $(this).children('ul').fadeIn(200);
+})
+.mouseleave(function() {
+        $(this).children('ul').fadeOut(200);
+});
+
+$('.ddm_anchor')
+.mouseenter(function() {
+        $(this).children('.panel_buttons').fadeIn(200);
+})
+.mouseleave(function() {
+        $(this).children('.panel_buttons').fadeOut(200);
+});
+
+currentPage = $(document).find(".navigation").text();
+
+if (currentPage.indexOf('Portal') != -1)
+{
+        $('.menu li a.portal').addClass('active');
+}
+else if (currentPage.indexOf('Search') != -1)
+{
+        $('.menu li a.search').addClass('active');
+}
+else if (currentPage.indexOf('Member List') != -1)
+{
+        $('.menu li a.memberlist').addClass('active');
+}
+else if (currentPage.indexOf('Calendar') != -1)
+{
+        $('.menu li a.calendar').addClass('active');
+}
+else if (currentPage.indexOf('Help Documents') != -1)
+{
+        $('.menu li a.help').addClass('active');
+}
+else if (currentPage.indexOf('Chatbox') != -1)
+{
+        $('.menu li a.chatbox').addClass('active');
+}
+else if (currentPage.indexOf('Rules') != -1)
+{
+        $('.menu li a.rules').addClass('active');
+}
+else if (window.location.href.indexOf('autoupgrade') != -1)
+{
+        $('.menu li a.upgrade').addClass('active');
+}
+else if (currentPage.indexOf('NonEx') == -1)
+{
+        $('.menu li a.forum').addClass('active');
+}
+
+    if ( $('ul.navigation').height() > 40 )
+    {
+        $('ul.navigation li').not(':first, :last').children('a').html('...');
+    }
+
+});
+</script>
+<script type="text/javascript">
+    var unreadAlerts = '';
+</script>
+
+
+<script type="text/javascript" src="{$mybb->asset_url}/jscripts/myalerts.js"></script>
+<style>
+	
+        .userbar-image { max-width: 240px; }
+	.inline_row a {color:#C32928;font-size:90%;}
+	.inline_row a:visited {color:#C32928;font-size:90%;}
+	.post .post_head {
+		font-size: 11px;
+		padding: 10px;
+		border-top: 15px solid #0A0A0A;
+	}
+        .post_content .signature {
+	        margin-top: 5px;
+	        border-top: solid thin #404040;
+	        padding: 10px 0 4px 0;
+        }
+	.post_controls {
+                margin-top: 3px;
+		clear: both;
+		background: #1a1a1a;
+		border-bottom: 1px solid #202020;
+                box-shadow: 0 0 5px 0 #00000072;
+		padding: 5px;
+		overflow: hidden;
+	}
+        hr {
+            border: none;
+            width: 95%;
+            height: 3px;
+            background-color: #2a2a2a;
+            border-bottom: solid thin #cd1818;
+        }
+        .postlink{
+                background-color: #202020;
+                padding: 5px;
+                border-radius: 3px;
+                border: solid thin #cd1818;
+        }
+	.red_alert:hover {
+	-moz-transition:background-color 0.5s ease-in;
+	-o-transition:background-color 0.5s ease-in;
+	-webkit-transition:background-color 0.5s ease-in; 
+	background-color:#CD1818;
+	}
+	
+</style>
+
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-78420601-1', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+<script>
+let cDate = new Date();
+let maintanenceTime = 4;
+let maintanenceWarning = 30;
+if ((maintanenceTime - cDate.getUTCHours() <= 1 && cDate.getUTCMinutes() >= maintanenceWarning) && maintanenceTime - 1 - cDate.getUTCHours() >= 0) {
+	let eleDownAlert = document.getElementById('down_alert');
+	eleDownAlert.style.display = 'block';
+	(function tick() {
+		cDate = new Date();
+		let cHour = cDate.getUTCHours();
+		let cMin = 59 - cDate.getUTCMinutes();
+		let cSec = 60 - cDate.getUTCSeconds();
+		if (maintanenceTime - 1 - cDate.getUTCHours() < 0) {
+			eleDownAlert.innerHTML = "<span>The site is currently down for maintenance, check back in 10-15 minutes!</span><br/><br/>";
+			return;
+		}
+		cMin = cMin < 10 ? ("0" + cMin) : cMin;
+		cSec = cSec < 10 ? ("0" + cSec) : cSec;
+		eleDownAlert.innerHTML = "<span>The site will go down for routine maintenance in: <strong>" + ((maintanenceTime - 1) - cHour) + ":" + cMin + ":" + cSec + "</strong>.</span><br/><br/>";
+		setTimeout(tick, 1000);
+	})();
+}
+</script>

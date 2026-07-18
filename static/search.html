@@ -1,0 +1,1890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="keywords" content="v3rmillion, v3rm-archive, v3rm, v3rmillion-archive" />
+    <meta name="description" content="V3rmillion Local Archive Index Explorer" />
+    <title>V3rmillion Index Search</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="//maxcdn.bootstrapcdn.com/font-awesome/4.3.0/css/font-awesome.min.css">
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/vs2015.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+
+    <style>
+        body {
+            background-color: #0a0a0a !important;
+            color: #ccc;
+            font-family: 'Open Sans', Tahoma, Verdana, Arial, sans-serif;
+        }
+        .logo-container { background: transparent !important; border: none !important; box-shadow: none !important; }
+        .logo-img { max-width: 200px; height: auto; }
+        .page-box {
+            background-color: #111;
+            border: 1px solid #2a2a2a;
+            border-top: 4px solid #cd1818;
+            padding: 30px 30px 24px;
+        }
+        .card {
+            background-color: #111;
+            border: 1px solid #2a2a2a;
+            border-top: 4px solid #cd1818;
+            border-radius: 0 !important;
+            color: #ccc;
+            transition: border-color 0.15s ease;
+        }
+        .card:hover { border-color: #444 !important; border-top-color: #ff2222 !important; }
+        .card-body { padding: 1.1rem 1.2rem; }
+        .card-title { font-size: 1.05rem; font-weight: 600; color: #fff; line-height: 1.4; }
+        .thread-id-badge {
+            font-size: .75rem; font-family: 'Courier New', monospace; letter-spacing: 0.5px;
+            background-color: #1a1a1a; color: #888; border: 1px solid #2a2a2a;
+            padding: 2px 6px; border-radius: 4px;
+        }
+        .view-json-btn { border-radius: 0 !important; letter-spacing: 0.3px; font-size: 0.8rem; padding: 7px 0; }
+        .card-meta-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+        .card-meta-pill {
+            display: inline-flex; align-items: center; gap: 4px; font-size: 0.69rem;
+            color: #666; background: #151515; border: 1px solid #222;
+            padding: 2px 7px; border-radius: 3px; white-space: nowrap;
+        }
+        .card-meta-pill i { color: #444; font-size: 0.65rem; }
+        .card-meta-pill.cat-pill { color: #888; border-color: #2a2a2a; }
+        .card-meta-pill.cat-pill i { color: #cd1818; }
+        .card-author-line { font-size: 0.74rem; color: #666; margin-bottom: 6px; }
+        .card-author-line span { color: #cd1818; font-weight: 700; }
+        code { color: #ff3333; background-color: #050505; padding: 2px 4px; border-radius: 3px; }
+        .form-control {
+            background-color: #1a1a1a !important; color: #fff !important;
+            border: 1px solid #2a2a2a !important;
+            padding-left: 14px !important; padding-right: 14px !important;
+        }
+        .filter-select {
+            background-color: #1a1a1a !important; color: #fff !important;
+            border: 1px solid #2a2a2a !important; padding: 0 32px 0 12px !important;
+            height: calc(1.5em + .75rem + 2px) !important; width: 100% !important;
+            cursor: pointer; border-radius: 4px !important;
+            -webkit-appearance: none !important; -moz-appearance: none !important; appearance: none !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important; background-position: right 10px center !important;
+        }
+        .filter-select:focus {
+            border-color: #cd1818 !important;
+            box-shadow: 0 0 0 0.2rem rgba(205,24,24,0.25) !important;
+            outline: none !important;
+        }
+        .form-control::placeholder { color: #666; }
+        .form-control:focus { border-color: #cd1818 !important; box-shadow: 0 0 0 0.2rem rgba(205,24,24,0.25); }
+        .btn-danger { background-color: #cd1818; border-color: #cd1818; }
+        .btn-danger:hover { background-color: #ab1212; border-color: #ab1212; }
+        .page-link { background-color: #111; border-color: #2a2a2a; color: #cd1818; }
+        .page-link:hover { background-color: #1a1a1a; color: #ff3333; border-color: #2a2a2a; }
+        .page-item.active .page-link { background-color: #cd1818; border-color: #cd1818; color: #fff; }
+        .page-item.disabled .page-link { background-color: #050505; border-color: #2a2a2a; color: #444; }
+
+        /* ── Mode switcher tabs ── */
+        .search-mode-tabs { display: flex; gap: 0; margin-bottom: 14px; border-bottom: 2px solid #2a2a2a; }
+        .search-mode-tab {
+            background: #0d0d0d; border: 1px solid #2a2a2a; border-bottom: none;
+            color: #888; padding: 6px 18px; font-size: 0.78rem; font-weight: 700;
+            letter-spacing: 0.5px; cursor: pointer; text-transform: uppercase;
+            transition: all 0.15s; margin-right: 2px;
+        }
+        .search-mode-tab:hover { color: #ccc; background: #151515; }
+        .search-mode-tab.active {
+            background: #111; color: #fff; border-top: 2px solid #cd1818;
+            border-left-color: #333; border-right-color: #333;
+        }
+
+        /* ── FTS post result card ── */
+        .post-result-card {
+            background: #111; border: 1px solid #2a2a2a;
+            border-left: 3px solid #cd1818; margin-bottom: 10px; padding: 10px 14px;
+        }
+        .post-result-card:hover { border-color: #444; border-left-color: #ff2222; }
+        .post-result-thread-link { font-size: 0.72rem; color: #888; cursor: pointer; text-decoration: underline; }
+        .post-result-thread-link:hover { color: #cd1818; }
+        .post-result-author { font-size: 0.78rem; font-weight: 700; color: #cd1818; }
+        .post-result-date { font-size: 0.72rem; color: #555; }
+        .post-result-snippet {
+            font-size: 0.82rem; color: #bbb; margin-top: 5px; line-height: 1.5;
+            max-height: 3.5em; overflow: hidden; text-overflow: ellipsis;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+        }
+
+        /* ── Date filter row ── */
+        .date-filter-row { display: none; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+        .date-filter-row.visible { display: flex; }
+        .date-filter-row label { font-size: 0.7rem; font-weight: 700; color: #666; margin-bottom: 2px; display: block; }
+        .date-input-wrap { display: flex; flex-direction: column; min-width: 140px; }
+        .op-only-wrap { display: flex; align-items: center; gap: 6px; padding-bottom: 2px; }
+        .op-only-wrap label { font-size: 0.72rem; color: #888; margin: 0; cursor: pointer; }
+        input[type="checkbox"].op-only-chk { accent-color: #cd1818; width: 14px; height: 14px; cursor: pointer; }
+
+        /* ── Loading screen ── */
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #0a0a0a; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999;
+        }
+        .loading-spinner {
+            border: 6px solid #161616; border-top: 6px solid #cd1818;
+            border-radius: 50%; width: 40px; height: 40px;
+            animation: spin 2s linear infinite; margin-bottom: 15px;
+        }
+        @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
+        #content { display: none; }
+
+        /* ── Viewer modal ── */
+        .viewer-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85); z-index: 10000;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .viewer-card {
+            width: 92%; max-width: 950px; max-height: 90vh;
+            background: #0a0a0a; border: 1px solid #2a2a2a;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .viewer-header {
+            background: #1a1a1a; border-bottom: 5px solid #cd1818;
+            padding: 10px 15px; display: flex; justify-content: space-between; align-items: center;
+            flex-shrink: 0;
+        }
+        .viewer-header-title {
+            color: #fff; font-size: 18px; font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .viewer-close-btn {
+            background: #cd1818; border: 1px solid #cd1818; color: #fff;
+            font-weight: 700; padding: 4px 10px; cursor: pointer; font-size: 13px;
+            flex-shrink: 0; margin-left: 10px;
+        }
+        .viewer-close-btn:hover { background: #404040; border-color: #404040; }
+        .copy-link-btn {
+            background: #252525; border: 1px solid #333; color: #aaa;
+            padding: 2px 8px; font-size: 11px; border-radius: 3px; cursor: pointer; transition: all 0.2s;
+        }
+        .copy-link-btn:hover { background: #cd1818; border-color: #cd1818; color: #fff; }
+
+        /* ── User profile modal ── */
+        .user-modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9); z-index: 10001;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .user-modal-card {
+            width: 92%; max-width: 620px; max-height: 90vh;
+            background: #0d0d0d; border: 1px solid #2a2a2a; border-top: 4px solid #cd1818;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .user-modal-header {
+            background: #1a1a1a; padding: 12px 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid #2a2a2a; flex-shrink: 0;
+        }
+        .user-modal-body { overflow-y: auto; padding: 16px; flex-grow: 1; }
+        .user-stat-row { display: flex; border-bottom: 1px solid #1a1a1a; padding: 7px 0; font-size: 0.82rem; }
+        .user-stat-label { color: #666; width: 140px; flex-shrink: 0; }
+        .user-stat-value { color: #ccc; word-break: break-all; }
+        .user-stat-value.red { color: #cd1818; font-weight: 700; }
+        .user-awards-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+        .user-award-badge { background: #1a1a1a; border: 1px solid #333; color: #aaa; font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; }
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar { width: 10px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #444; border: 2px solid #0a0a0a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #666; }
+        * { scrollbar-width: thin; scrollbar-color: #444 #0a0a0a; }
+
+        .viewer-body { overflow-y: auto; flex: 0 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(90vh - 78px); }
+
+        /* ── Post styling ── */
+        .v3rm-post { overflow: hidden; border-top: 15px solid #0a0a0a; width: 100%; }
+        .v3rm-post-head {
+            font-size: 11px; padding: 8px 10px; border-top: 1px solid #cd1818;
+            color: #888; background: #111; display: flex; justify-content: space-between; align-items: center;
+        }
+        .v3rm-post-date-wrapper { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 5px; line-height: 1.4; }
+        .v3rm-post-num { background: #111; padding: 2px 6px; border-radius: 2px; border: 1px solid #2a2a2a; color: #fff; font-size: 11px; font-weight: 700; }
+        .v3rm-post-author { background: #161616; border-bottom: 1px solid #222; padding: 8px 10px; display: flex; align-items: flex-start; gap: 10px; }
+        .v3rm-author-name { font-size: 14px; font-weight: 700; color: #cd1818; cursor: pointer; }
+        .v3rm-author-name:hover { color: #ff3333; text-decoration: underline; }
+        .v3rm-author-name.op { color: #cd1818; }
+        .v3rm-author-stats { font-size: 11px; color: #777; line-height: 1.5; margin-top: 2px; }
+        .v3rm-post-content { padding: 12px; background: #111; }
+        .v3rm-post-body {
+            font-size: 13px; color: #ccc; font-family: Tahoma, Verdana, Arial, sans-serif;
+            line-height: 1.6; padding: 5px 0; word-break: break-word;
+        }
+        .v3rm-post-body a { color: #cd1818; text-decoration: underline; }
+        .v3rm-post-body a:hover { color: #ff3333; }
+        .v3rm-align-center { text-align: center; }
+        .v3rm-align-left { text-align: left; }
+        .v3rm-align-right { text-align: right; }
+        .v3rm-embedded-img { max-width: 100%; height: auto; margin: 10px 0; border: none; border-radius: 2px; display: block; background: transparent; }
+        .v3rm-align-center .v3rm-embedded-img { margin-left: auto; margin-right: auto; }
+        .v3rm-embed-slot { margin: 10px 0; background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 3px; overflow: hidden; max-width: 560px; }
+        .v3rm-embed-slot .embed-loading { padding: 8px 12px; font-size: 11px; color: #555; font-style: italic; }
+        .v3rm-category-path { font-size: 11px; color: #888; margin-bottom: 5px; }
+        .v3rm-post-footer { padding: 4px 0 2px; display: flex; gap: 6px; align-items: center; }
+        .v3rm-like-btn { background: #161616; display: inline-flex; align-items: center; gap: 5px; padding: 3px 8px; border: 1px solid #222; border-radius: 2px; font-size: 11px; font-weight: 700; color: #aaa; }
+        .v3rm-like-btn .fa-thumbs-o-up { color: #29cb09; }
+        .v3rm-like-btn .fa-thumbs-o-down { color: #b40404; }
+        .v3rm-post-controls { clear: both; background: #161616; border-bottom: 1px solid #202020; padding: 5px 10px; font-size: 12px; color: #666; }
+        .v3rm-edited { font-size: 11px; color: #888; font-style: italic; margin-left: 5px; }
+        .v3rm-reply-wrap { margin-left: 20px; border-left: 3px solid #cd1818; margin-top: 0; }
+        .v3rm-reply-wrap .v3rm-reply-wrap { margin-left: 14px; border-left: 3px solid #5a0a0a; }
+        .v3rm-reply-wrap .v3rm-reply-wrap .v3rm-reply-wrap { margin-left: 10px; border-left: 3px solid #2a2a2a; }
+        @media (max-width: 576px) {
+            .v3rm-reply-wrap { margin-left: 10px; }
+            .v3rm-reply-wrap .v3rm-reply-wrap { margin-left: 6px; }
+        }
+
+        /* ── Spoiler ── */
+        .v3rm-spoiler-wrap { margin: 10px 0; }
+        .v3rm-spoiler-toggle {
+            display: inline-flex; align-items: center; gap: 6px;
+            background: #1a1a1a; border: 1px solid #333; color: #aaa;
+            font-size: 11px; font-weight: 700; padding: 4px 10px;
+            cursor: pointer; user-select: none; border-radius: 2px;
+            text-transform: uppercase; letter-spacing: 0.4px;
+        }
+        .v3rm-spoiler-toggle:hover { background: #222; color: #fff; border-color: #555; }
+        .v3rm-spoiler-toggle .spoiler-arrow { font-size: 9px; transition: transform 0.15s; display: inline-block; }
+        .v3rm-spoiler-toggle.open .spoiler-arrow { transform: rotate(90deg); }
+        .v3rm-spoiler-body {
+            display: none; margin-top: 6px;
+            background: #0d0d0d; border: 1px solid #2a2a2a; border-left: 3px solid #cd1818;
+            padding: 10px 12px; font-size: 13px; color: #ccc;
+            font-family: Tahoma, Verdana, Arial, sans-serif; line-height: 1.6;
+        }
+        .v3rm-spoiler-body.open { display: block; }
+        .v3rm-spoiler-body img { max-width: 100%; height: auto; }
+
+        /* ── Quoted content (blockquote from parser) ── */
+        .v3rm-post-body blockquote, .v3rm-post-body .v3rm-quote {
+            margin: 10px 0; padding: 10px 12px;
+            background: #1c1c1c; border-left: 4px solid #555; border-radius: 2px;
+            font-size: 12px; color: #aaa;
+        }
+        .v3rm-post-body blockquote cite, .v3rm-post-body .v3rm-quote-author {
+            display: block; font-style: normal; font-weight: 700;
+            color: #888; font-size: 11px; margin-bottom: 5px;
+        }
+
+        /* ── Code blocks from stored HTML ── */
+        .v3rm-post-body .v3rm-code-container, .v3rm-post-body .codeblock {
+            margin: 12px 0; border: 1px solid #2a2a2a; border-radius: 4px; overflow: hidden;
+            white-space: normal;
+        }
+        .v3rm-post-body pre { margin: 0; }
+        .v3rm-post-body pre code { padding: 12px; display: block; overflow-x: auto; background: #050505; font-size: 13px; line-height: 1.5; white-space: pre; }
+
+        .form-row label { font-size: 0.72rem; letter-spacing: 0.2px; white-space: nowrap; }
+        .v3rm-site-title { font-family: 'Rajdhani','Open Sans',sans-serif; font-weight: 700; font-size: 2.6rem; letter-spacing: 2px; color: #fff; text-transform: uppercase; margin-top: 16px; }
+        .v3rm-title-accent { color: #cd1818; }
+        .v3rm-db-status { font-size: 0.72rem; color: #555; letter-spacing: 0.5px; margin-top: 64px; margin-bottom: 0; }
+
+        /* ── FTS load-more ── */
+        #fts-load-more-wrap { text-align: center; margin-top: 12px; display: none; }
+        #fts-result-count { font-size: 0.72rem; color: #555; margin-top: 6px; }
+
+        /* ── Index search pagination ── */
+        #index-pagination-wrap { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .idx-page-btn { background: #1a1a1a; border: 1px solid #2a2a2a; color: #cd1818; padding: 3px 10px; font-size: 12px; cursor: pointer; border-radius: 2px; }
+        .idx-page-btn:hover { background: #222; }
+        .idx-page-btn.active { background: #cd1818; border-color: #cd1818; color: #fff; cursor: default; }
+        .idx-page-btn:disabled { background: #0a0a0a; color: #333; cursor: not-allowed; border-color: #1a1a1a; }
+        #index-metrics { font-size: 0.72rem; color: #555; text-align: center; margin-bottom: 8px; display: none; }
+    </style>
+</head>
+<body>
+    <div id="loading-screen">
+        <div class="loading-spinner"></div>
+        <div id="loading-text" class="text-muted font-weight-bold">Connecting to archive...</div>
+    </div>
+
+<div class="container my-5" id="content">
+    <div class="page-box">
+
+        <div class="text-center mb-2 logo-container">
+            <div class="logo-box">
+                <img src="ico.png" alt="V3rmillion Logo" class="img-fluid logo-img" onerror="this.style.display='none'">
+                <p class="v3rm-db-status" id="index-status">Connecting...</p>
+            </div>
+        </div>
+
+        <h1 class="text-center mb-3 v3rm-site-title">V3rmillion <span class="v3rm-title-accent">Index Search</span></h1>
+
+        <!-- ── Mode tabs ── -->
+        <div class="search-mode-tabs">
+            <button class="search-mode-tab active" id="tab-index" onclick="switchMode('index')">
+                <i class="fa fa-list"></i>&nbsp; Thread Index
+            </button>
+            <button class="search-mode-tab" id="tab-fts" onclick="switchMode('fts')">
+                <i class="fa fa-search"></i>&nbsp; Post Content Search
+            </button>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <!-- INDEX SEARCH PANEL                                                -->
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-index">
+            <div class="row justify-content-center mb-2">
+                <div class="col-md-12">
+                    <form action="#" onsubmit="triggerIndexSearch(); return false;">
+                        <div class="form-row align-items-center">
+                            <div class="col-lg-2 col-md-6 mb-2">
+                                <label class="small font-weight-bold text-muted mb-1 d-block">1. Forum Category Target</label>
+                                <select id="categoryDropdown" class="form-control filter-select">
+                                    <option value="" selected>All Categories (Entire Archive)</option>
+                                    <optgroup label="Socialising">
+                                        <option value="Socialising">Socialising</option>
+                                        <option value="Announcements">Announcements</option>
+                                        <option value="Lounge">Lounge</option>
+                                        <option value="Forum Games &amp; Giveaways">Forum Games &amp; Giveaways</option>
+                                        <option value="User Support">User Support</option>
+                                        <option value="Suggestions/Ideas">Suggestions/Ideas</option>
+                                        <option value="Ban Appeals">Ban Appeals</option>
+                                    </optgroup>
+                                    <optgroup label="Marketplace">
+                                        <option value="Marketplace">Marketplace</option>
+                                        <option value="Marketplace Discussion">Marketplace Discussion</option>
+                                        <option value="Normal Sellers">Normal Sellers</option>
+                                        <option value="Premium Sellers">Premium Sellers</option>
+                                        <option value="Disputes">Disputes</option>
+                                    </optgroup>
+                                    <optgroup label="Media">
+                                        <option value="Media">Media</option>
+                                        <option value="Vermillion Missionary">Vermillion Missionary</option>
+                                        <option value="Graphics">Graphics</option>
+                                        <option value="Music">Music</option>
+                                        <option value="Anime &amp; Manga">Anime &amp; Manga</option>
+                                    </optgroup>
+                                    <optgroup label="Exploiting">
+                                        <option value="Exploiting">Exploiting</option>
+                                        <option value="Roblox">Roblox (Exploiting)</option>
+                                        <option value="Sales &amp; Services">Sales &amp; Services</option>
+                                        <option value="Guides, Tuts &amp; Assistance">Guides, Tuts &amp; Assistance</option>
+                                        <option value="General Exploiting">General Exploiting</option>
+                                    </optgroup>
+                                    <optgroup label="Technology">
+                                        <option value="Technology">Technology</option>
+                                        <option value="Information Security">Information Security</option>
+                                        <option value="Cryptocurrency">Cryptocurrency</option>
+                                        <option value="Hardware &amp; Software Discussion">Hardware &amp; Software Discussion</option>
+                                    </optgroup>
+                                    <optgroup label="Coding">
+                                        <option value="Coding">Coding</option>
+                                        <option value="General Coding">General Coding</option>
+                                        <option value="Lua">Lua</option>
+                                        <option value="C/C++">C/C++</option>
+                                        <option value="Python">Python</option>
+                                        <option value="Java &amp; Android">Java &amp; Android</option>
+                                        <option value="Javascript">Javascript</option>
+                                        <option value="C#">C#</option>
+                                        <option value="Web Development">Web Development</option>
+                                    </optgroup>
+                                    <optgroup label="Gaming">
+                                        <option value="Gaming">Gaming</option>
+                                        <option value="General Gaming">General Gaming</option>
+                                        <option value="Minecraft">Minecraft</option>
+                                        <option value="Counter-Strike">Counter-Strike</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-md-6 mb-2">
+                                <label class="small font-weight-bold text-muted mb-1 d-block">2. Search By</label>
+                                <select id="searchTarget" class="form-control filter-select">
+                                    <option value="title" selected>Thread Title</option>
+                                    <option value="author">Author Username</option>
+                                    <option value="author_id">Author ID</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-md-12 mb-2">
+                                <label id="inputLabel" class="font-weight-bold text-muted mb-1 d-block" style="font-size:0.72rem;">3. Search Keywords...</label>
+                                <input type="text" id="searchInput" class="form-control" placeholder="Type keywords here...">
+                            </div>
+                            <div class="col-lg-2 col-md-4 mb-2">
+                                <label class="small font-weight-bold text-muted mb-1 d-block">4. Sort Results</label>
+                                <select id="sortBy" class="form-control filter-select">
+                                    <option value="relevance" selected>Relevance</option>
+                                    <option value="thread_id">Thread ID</option>
+                                    <option value="title">Title</option>
+                                    <option value="date">Date</option>
+                                    <option value="replies">Reply Count</option>
+                                    <option value="likes">Likes</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-md-4 mb-2">
+                                <label class="small font-weight-bold text-muted mb-1 d-block">5. Order</label>
+                                <select id="sortOrder" class="form-control filter-select">
+                                    <option value="asc" selected>Ascending</option>
+                                    <option value="desc">Descending</option>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-md-4 mb-2">
+                                <label class="small font-weight-bold mb-1 d-block" style="visibility:hidden;">6.</label>
+                                <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height:calc(1.5em + .75rem + 2px);">Search</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div id="index-metrics"></div>
+            <div class="row justify-content-center mb-4" id="results"></div>
+            <div id="index-pagination-wrap"></div>
+        </div>
+
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <!-- FTS / POST CONTENT SEARCH PANEL                                  -->
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-fts" style="display:none;">
+            <form action="#" onsubmit="triggerFtsSearch(); return false;">
+                <div class="form-row align-items-end mb-2">
+                    <div class="col-lg-4 col-md-12 mb-2">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Post Content Keywords</label>
+                        <input type="text" id="ftsInput" class="form-control" placeholder='e.g. exploit bypass OR "remote execution"'>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Author Username</label>
+                        <input type="text" id="ftsAuthor" class="form-control" placeholder="Optional username...">
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Sort Posts By</label>
+                        <select id="ftsSortOrder" class="form-control filter-select">
+                            <option value="relevance">Relevance (FTS rank)</option>
+                            <option value="desc" selected>Newest First</option>
+                            <option value="asc">Oldest First</option>
+                            <option value="likes_desc">Most Liked</option>
+                            <option value="likes_asc">Least Liked</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2 d-flex align-items-end" style="padding-bottom:4px;">
+                        <div class="op-only-wrap">
+                            <input type="checkbox" class="op-only-chk" id="ftsOpOnly">
+                            <label for="ftsOpOnly">Thread starters only</label>
+                        </div>
+                    </div>
+                    <div class="col-lg-2 col-md-6 mb-2">
+                        <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="height:calc(1.5em + .75rem + 2px);">Search Posts</button>
+                    </div>
+                </div>
+                <div class="mb-2">
+                    <button type="button" class="btn btn-sm" id="dateFilterToggle"
+                        style="background:#1a1a1a;color:#888;border:1px solid #2a2a2a;font-size:0.72rem;padding:3px 10px;"
+                        onclick="toggleDateFilter()">
+                        <i class="fa fa-calendar"></i>&nbsp; Date Range Filter
+                    </button>
+                    <span id="dateFilterActiveLabel" style="display:none;font-size:0.7rem;color:#cd1818;margin-left:8px;">
+                        <i class="fa fa-filter"></i> Active
+                    </span>
+                </div>
+                <div class="date-filter-row" id="dateFilterRow">
+                    <div class="date-input-wrap">
+                        <label>From (UTC date)</label>
+                        <input type="date" id="ftsDateFrom" class="form-control" style="width:auto;">
+                    </div>
+                    <div class="date-input-wrap">
+                        <label>To (UTC date)</label>
+                        <input type="date" id="ftsDateTo" class="form-control" style="width:auto;">
+                    </div>
+                    <div style="padding-bottom:2px;">
+                        <button type="button" class="btn btn-sm" style="background:#1a1a1a;color:#666;border:1px solid #2a2a2a;font-size:0.72rem;" onclick="clearDateFilter()">Clear</button>
+                    </div>
+                </div>
+            </form>
+            <div style="margin-top:14px;">
+                <div id="fts-metrics" style="font-size:0.72rem;color:#555;margin-bottom:8px;display:none;"></div>
+                <div id="fts-results"></div>
+                <div id="fts-load-more-wrap">
+                    <button class="btn btn-sm" id="fts-load-more-btn"
+                        style="background:#1a1a1a;color:#cd1818;border:1px solid #2a2a2a;font-size:0.8rem;"
+                        onclick="loadMoreFts()">Load More Results</button>
+                    <div id="fts-result-count"></div>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /.page-box -->
+</div><!-- /#content -->
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+    // ════════════════════════════════════════════════════════════════════════
+    // CONSTANTS & STATE
+    // ════════════════════════════════════════════════════════════════════════
+    const INDEX_PAGE_SIZE = 24;
+    const FTS_PAGE_SIZE   = 30;
+
+    // Index search state
+    let indexOffset     = 0;
+    let indexTotal      = null;
+    let indexLastParams = null;
+
+    // FTS state
+    let ftsOffset      = 0;
+    let ftsLastParams  = null;
+    let ftsTotalShown  = 0;
+    let ftsExhausted   = false;
+    let ftsCurrentUid  = null;
+    let suppressUrlUpdate = false;
+
+    // User profile cache
+    const _userProfileCache = new Map();
+
+    // ════════════════════════════════════════════════════════════════════════
+    // MODE SWITCHING
+    // ════════════════════════════════════════════════════════════════════════
+    let currentMode = 'index';
+
+    function switchMode(mode) {
+        currentMode = mode;
+        document.getElementById('panel-index').style.display = mode === 'index' ? '' : 'none';
+        document.getElementById('panel-fts').style.display   = mode === 'fts'   ? '' : 'none';
+        document.getElementById('tab-index').classList.toggle('active', mode === 'index');
+        document.getElementById('tab-fts').classList.toggle('active',   mode === 'fts');
+    }
+
+    function setUrlState(paramsObj, replace = false) {
+        const sp = new URLSearchParams();
+        Object.entries(paramsObj).forEach(([key, value]) => {
+            if (value !== null && value !== undefined && String(value) !== '') {
+                sp.set(key, String(value));
+            }
+        });
+        const query = sp.toString();
+        const url = window.location.pathname + (query ? '?' + query : '');
+        const method = replace ? 'replaceState' : 'pushState';
+        window.history[method]({ type: paramsObj.id ? 'thread' : (paramsObj.mode || 'index'), ...paramsObj }, '', url);
+    }
+
+    function updateIndexUrl(offset = indexOffset, replace = false) {
+        if (!indexLastParams) return;
+        const { q, cat, smode, sort, order } = indexLastParams;
+        setUrlState({
+            cat,
+            q,
+            smode: smode && smode !== 'title' ? smode : '',
+            sort: sort && sort !== 'relevance' ? sort : '',
+            order: order && order !== 'asc' ? order : '',
+            offset: offset || ''
+        }, replace);
+    }
+
+    function updateFtsUrl(replace = false) {
+        if (!ftsLastParams) return;
+        const { q, author, sort, opOnly, startTs, endTs } = ftsLastParams;
+        setUrlState({
+            mode: 'fts',
+            q,
+            uid: author,
+            sort: sort && sort !== 'desc' ? sort : '',
+            op_only: opOnly === '1' ? '1' : '',
+            start_ts: startTs,
+            end_ts: endTs
+        }, replace);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // DATE FILTER HELPERS
+    // ════════════════════════════════════════════════════════════════════════
+    function toggleDateFilter() {
+        document.getElementById('dateFilterRow').classList.toggle('visible');
+    }
+    function clearDateFilter() {
+        document.getElementById('ftsDateFrom').value = '';
+        document.getElementById('ftsDateTo').value   = '';
+        document.getElementById('dateFilterActiveLabel').style.display = 'none';
+    }
+    function getDateTimestamps() {
+        const fromVal = document.getElementById('ftsDateFrom').value;
+        const toVal   = document.getElementById('ftsDateTo').value;
+        let startTs = null, endTs = null;
+        if (fromVal) startTs = Math.floor(new Date(fromVal + 'T00:00:00Z').getTime() / 1000);
+        if (toVal)   endTs   = Math.floor(new Date(toVal   + 'T23:59:59Z').getTime() / 1000);
+        document.getElementById('dateFilterActiveLabel').style.display = (fromVal || toVal) ? 'inline' : 'none';
+        return { startTs, endTs };
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // THREAD VIEWER
+    // ════════════════════════════════════════════════════════════════════════
+    async function fetchAndRenderThread(threadId, jumpToPostId = null) {
+        try {
+            const res  = await fetch(`/api/thread?thread_id=${encodeURIComponent(threadId)}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            showThreadViewerModal(data, threadId, jumpToPostId);
+        } catch (err) {
+            alert("Error loading thread " + threadId + ": " + err.message);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // USER PROFILE MODAL
+    // ════════════════════════════════════════════════════════════════════════
+    async function showUserProfile(uid, username) {
+        document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
+        const overlay = document.createElement('div');
+        overlay.className = 'user-modal-overlay';
+        overlay.innerHTML = `
+            <div class="user-modal-card">
+                <div class="user-modal-header">
+                    <span style="color:#fff;font-weight:700;font-size:15px;">
+                        <i class="fa fa-user" style="color:#cd1818;margin-right:6px;"></i>
+                        ${escapeHTML(username || uid)}
+                    </span>
+                    <button class="viewer-close-btn" id="close-user-modal">✕ Close</button>
+                </div>
+                <div class="user-modal-body" id="user-modal-body">
+                    <div style="text-align:center;padding:30px;color:#555;">
+                        <div class="loading-spinner" style="margin:0 auto 10px;"></div>Loading profile…
+                    </div>
+                </div>
+            </div>`;
+        document.body.appendChild(overlay);
+        overlay.querySelector('#close-user-modal').onclick = () => overlay.remove();
+        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
+        try {
+            let profile;
+            if (_userProfileCache.has(uid)) {
+                profile = _userProfileCache.get(uid);
+            } else {
+                const res = await fetch(`/api/user?uid=${encodeURIComponent(uid)}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                if (data.error) throw new Error(data.error);
+                profile = data.user;
+                _userProfileCache.set(uid, profile);
+            }
+            renderUserProfileBody(overlay.querySelector('#user-modal-body'), profile, uid);
+        } catch (err) {
+            overlay.querySelector('#user-modal-body').innerHTML =
+                `<div style="color:#cd1818;padding:20px;text-align:center;">Failed to load profile: ${escapeHTML(err.message)}</div>`;
+        }
+    }
+
+    function renderUserProfileBody(container, p, uid) {
+        function row(label, value, cls = '') {
+            if (!value && value !== 0) return '';
+            return `<div class="user-stat-row">
+                <span class="user-stat-label">${label}</span>
+                <span class="user-stat-value ${cls}">${escapeHTML(String(value))}</span>
+            </div>`;
+        }
+        const username    = p.username    || p.Username    || '';
+        const userTitle   = p.user_title  || p.usertitle   || '';
+        const userRank    = p.user_rank   || p.userrank    || '';
+        const uid_val     = p.user_id     || p.uid         || uid;
+        const reputation  = p.reputation;
+        const postCount   = p.post_count  || p.posts       || '';
+        const threadCount = p.thread_count|| p.threads     || '';
+        const joinDate    = p.join_date   || p.joined      || '';
+        const lastVisit   = p.last_visit  || p.last_active || '';
+        const timeOnline  = p.time_online || '';
+        const altsRaw     = p.alts;
+
+        let alts = altsRaw;
+        try { alts = JSON.parse(altsRaw); } catch(e) {}
+
+        if (!alts || (Array.isArray(alts) && alts.length === 0) || String(alts).trim() === '' || String(alts).trim() === '[]') {
+            altsHTML = row('Known Alts', 'None');
+        } else if (Array.isArray(alts)) {
+            altsHTML = row('Known Alts', alts.map(a => String(a).trim()).filter(Boolean).join(', ') || 'None');
+        } else {
+            altsHTML = row('Known Alts', alts);
+        }
+
+        const awardsRaw = p.awards || '';
+        let awardsHTML = '';
+        if (awardsRaw) {
+            try {
+                const aList = typeof awardsRaw === 'string' ? JSON.parse(awardsRaw) : awardsRaw;
+                if (Array.isArray(aList) && aList.length) {
+                    awardsHTML = `<div class="user-stat-row">
+                        <span class="user-stat-label">Awards</span>
+                        <span class="user-stat-value">
+                            <div class="user-awards-list">
+                                ${aList.map(a => {
+                                    const title = typeof a === 'string' ? a : (a && (a.title || a.name) ? (a.title || a.name) : JSON.stringify(a));
+                                    return `<span class="user-award-badge">${escapeHTML(title)}</span>`;
+                                }).join('')}
+                            </div>
+                        </span>
+                    </div>`;
+                }
+            } catch { awardsHTML = row('Awards', awardsRaw); }
+        }
+
+        const repHTML = (reputation !== null && reputation !== undefined && reputation !== '')
+            ? `<div class="user-stat-row">
+                <span class="user-stat-label">Reputation</span>
+                <span class="user-stat-value"><strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong></span>
+               </div>`
+            : '';
+
+        const searchLink = `<a href="#" class="user-search-posts-link" data-uid="${escapeHTML(String(uid_val))}" data-username="${escapeHTML(username)}" style="color:#cd1818;font-size:0.75rem;margin-left:8px;">[Search Posts]</a>`;
+
+        container.innerHTML = `
+            <div style="margin-bottom:6px;">
+                <span style="font-size:1.1rem;font-weight:700;color:#cd1818;">${escapeHTML(username)}</span>
+                ${searchLink}
+                ${userRank ? `<span style="font-size:10px;background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:1px 6px;border-radius:3px;margin-left:6px;">${escapeHTML(userRank)}</span>` : ''}
+            </div>
+            ${userTitle ? `<div style="font-size:11px;color:#666;font-style:italic;margin-bottom:10px;">${escapeHTML(userTitle)}</div>` : ''}
+            <div style="border-top:1px solid #1a1a1a;margin-bottom:4px;"></div>
+            ${row('User ID', uid_val)}
+            ${repHTML}
+            ${row('Post Count', postCount)}
+            ${row('Thread Count', threadCount)}
+            ${row('Joined', joinDate)}
+            ${row('Last Visit', lastVisit)}
+            ${row('Time Online', timeOnline)}
+            ${altsHTML}
+            ${awardsHTML}
+        `;
+
+    }
+
+    function searchByUser(uid, username) {
+        console.debug('[profile search posts] searchByUser called', { uid, username });
+        document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
+        document.querySelectorAll('.viewer-overlay').forEach(e => e.remove());
+        switchMode('fts');
+        document.getElementById('ftsInput').value  = '';
+        document.getElementById('ftsAuthor').value = uid || username;
+        ftsCurrentUid  = null;
+        ftsOffset      = 0;
+        ftsExhausted   = false;
+        ftsTotalShown  = 0;
+        document.getElementById('fts-results').innerHTML = '';
+        document.getElementById('fts-load-more-wrap').style.display = 'none';
+        document.getElementById('fts-metrics').style.display = 'none';
+        ftsLastParams = { q: '', author: uid || username, sort: 'desc', opOnly: '0', startTs: null, endTs: null, useUserPosts: false };
+        console.debug('[profile search posts] ftsLastParams prepared', ftsLastParams);
+
+        updateFtsUrl();
+
+        runFtsQuery(true);
+    }
+
+    document.addEventListener('click', function(event) {
+        const link = event.target.closest('.user-search-posts-link');
+        if (!link) return;
+        event.preventDefault();
+        event.stopPropagation();
+        console.debug('[profile search posts] link clicked', {
+            uid: link.getAttribute('data-uid') || '',
+            username: link.getAttribute('data-username') || ''
+        });
+        searchByUser(
+            link.getAttribute('data-uid') || '',
+            link.getAttribute('data-username') || ''
+        );
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // INDEX SEARCH — server-side via /api/search_threads
+    // ════════════════════════════════════════════════════════════════════════
+    function triggerIndexSearch() {
+        indexOffset = 0;
+        indexTotal  = null;
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('index-pagination-wrap').innerHTML = '';
+        document.getElementById('index-metrics').style.display = 'none';
+
+        const q       = document.getElementById('searchInput').value.trim();
+        const cat     = document.getElementById('categoryDropdown').value;
+        const smode   = document.getElementById('searchTarget').value;
+        const sort    = document.getElementById('sortBy').value;
+        const order   = document.getElementById('sortOrder').value;
+
+        // Map smode to correct API param
+        indexLastParams = { q, cat, smode, sort, order };
+        if (!suppressUrlUpdate) updateIndexUrl(0);
+        runIndexQuery(0, true);
+    }
+
+    async function runIndexQuery(offset, replace = false) {
+        const container = document.getElementById('results');
+        if (replace) {
+            container.innerHTML = `<div class="col-12 text-center py-4" style="color:#555;">
+                <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching…</div>`;
+        }
+
+        const { q, cat, smode, sort, order } = indexLastParams;
+
+        const params = new URLSearchParams({ sort, order, offset, limit: INDEX_PAGE_SIZE });
+        if (cat)  params.set('cat', cat);
+
+        // Route the keyword to the right API param based on search mode
+        if (q) {
+            if (smode === 'author')    params.set('author', q);
+            else if (smode === 'author_id') { params.set('author', q); } // author_id handled via author field
+            else                       params.set('q', q);              // title FTS
+        }
+
+        const t0 = performance.now();
+        try {
+            const res  = await fetch(`/api/search_threads?${params}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            const rows  = data.results || [];
+            const total = data.total   ?? rows.length;
+            const ms    = (performance.now() - t0).toFixed(1);
+            indexTotal  = total;
+            indexOffset = offset;
+
+            if (replace) container.innerHTML = '';
+
+            if (!rows.length && offset === 0) {
+                container.innerHTML = `<div class="col-12"><p class="text-center text-muted my-4">No results found matching those parameters.</p></div>`;
+                return;
+            }
+
+            rows.forEach(thread => container.appendChild(buildIndexCard(thread)));
+
+            // Metrics
+            const metricsEl = document.getElementById('index-metrics');
+            metricsEl.textContent = `Found ${total.toLocaleString()} matching archive record${total === 1 ? '' : 's'} — ${ms} ms`;
+            metricsEl.style.display = 'block';
+
+            renderIndexPagination(offset, total);
+
+        } catch (err) {
+            container.innerHTML = `<div class="col-12"><p class="text-center text-danger my-4">Search error: ${escapeHTML(err.message)}</p></div>`;
+        }
+    }
+
+    function buildIndexCard(thread) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'col-md-6 col-lg-4 mb-4';
+
+        const cats       = thread.categories || [];
+        const catLabel   = cats.length > 0 ? cats[cats.length - 1] : null;
+        const replyCount = thread.reply_count;
+        const likeCount  = thread.like_count;
+        const threadDate = thread.date        || null;
+        const authorName = thread.author      || null;
+        const authorId   = thread.author_id   || null;
+
+        const pills = [];
+        if (replyCount != null) pills.push(`<span class="card-meta-pill"><i class="fa fa-reply"></i>${Number(replyCount).toLocaleString()} repl${replyCount == 1 ? 'y' : 'ies'}</span>`);
+        if (likeCount != null) pills.push(`<span class="card-meta-pill"><i class="fa fa-thumbs-o-up"></i>${Number(likeCount).toLocaleString()} like${likeCount == 1 ? '' : 's'}</span>`);
+        if (threadDate) pills.push(`<span class="card-meta-pill"><i class="fa fa-clock-o"></i>${escapeHTML(String(threadDate))}</span>`);
+
+        const authorClick = authorId
+            ? `style="cursor:pointer;" onclick="showUserProfile('${escapeHTML(String(authorId))}','${escapeHTML(authorName || '')}')" title="View profile"`
+            : '';
+
+        wrapper.innerHTML = `
+            <div class="card h-100 shadow-sm">
+              <div class="card-body d-flex flex-column">
+                <div class="mb-1 d-flex align-items-center justify-content-between flex-wrap" style="gap:4px;">
+                    <span class="thread-id-badge font-weight-bold">ID: ${thread.thread_id}</span>
+                    ${catLabel ? `<span class="card-meta-pill cat-pill"><i class="fa fa-folder-o"></i>${escapeHTML(catLabel)}</span>` : ''}
+                </div>
+                <h5 class="card-title mb-2">${escapeHTML(decodeEntities(thread.title || 'Untitled Thread').trim())}</h5>
+                ${authorName ? `<div class="card-author-line">by <span ${authorClick}>${escapeHTML(authorName)}</span></div>` : ''}
+                ${pills.length ? `<div class="card-meta-row">${pills.join('')}</div>` : ''}
+                <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Thread</button>
+              </div>
+            </div>`;
+        wrapper.querySelector('.view-json-btn').onclick = () => {
+            setUrlState({ id: thread.thread_id });
+            fetchAndRenderThread(thread.thread_id);
+        };
+        return wrapper;
+    }
+
+    function renderIndexPagination(currentOffset, total) {
+        const wrap = document.getElementById('index-pagination-wrap');
+        wrap.innerHTML = '';
+        const totalPages  = Math.ceil(total / INDEX_PAGE_SIZE);
+        if (totalPages <= 1) return;
+
+        const currentPage = Math.floor(currentOffset / INDEX_PAGE_SIZE) + 1;
+
+        const prev = document.createElement('button');
+        prev.className = 'idx-page-btn';
+        prev.textContent = '« Prev';
+        prev.disabled = currentPage <= 1;
+        prev.onclick = () => {
+            const pageOffset = (currentPage - 2) * INDEX_PAGE_SIZE;
+            updateIndexUrl(pageOffset);
+            runIndexQuery(pageOffset, true);
+        };
+        wrap.appendChild(prev);
+
+        let startP = Math.max(1, currentPage - 3);
+        let endP   = Math.min(totalPages, startP + 6);
+        if (endP - startP < 6) startP = Math.max(1, endP - 6);
+        for (let i = startP; i <= endP; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'idx-page-btn' + (i === currentPage ? ' active' : '');
+            btn.textContent = i;
+            const pageOffset = (i - 1) * INDEX_PAGE_SIZE;
+            btn.onclick = () => {
+                updateIndexUrl(pageOffset);
+                runIndexQuery(pageOffset, true);
+            };
+            wrap.appendChild(btn);
+        }
+
+        const next = document.createElement('button');
+        next.className = 'idx-page-btn';
+        next.textContent = 'Next »';
+        next.disabled = currentPage >= totalPages;
+        next.onclick = () => {
+            const pageOffset = currentPage * INDEX_PAGE_SIZE;
+            updateIndexUrl(pageOffset);
+            runIndexQuery(pageOffset, true);
+        };
+        wrap.appendChild(next);
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // FTS SEARCH
+    // ════════════════════════════════════════════════════════════════════════
+    function triggerFtsSearch() {
+        ftsOffset     = 0;
+        ftsExhausted  = false;
+        ftsTotalShown = 0;
+        document.getElementById('fts-results').innerHTML = '';
+        document.getElementById('fts-load-more-wrap').style.display = 'none';
+        document.getElementById('fts-metrics').style.display = 'none';
+
+        const q      = document.getElementById('ftsInput').value.trim();
+        const author = document.getElementById('ftsAuthor').value.trim();
+        const sort   = document.getElementById('ftsSortOrder').value;
+        const opOnly = document.getElementById('ftsOpOnly').checked ? '1' : '0';
+        const { startTs, endTs } = getDateTimestamps();
+
+        if (!q && !author) {
+            document.getElementById('fts-results').innerHTML =
+                '<p style="color:#555;text-align:center;padding:20px;">Enter keywords or an author name to search post content.</p>';
+            return;
+        }
+        if (ftsLastParams && ftsLastParams.author !== author) ftsCurrentUid = null;
+        ftsLastParams = { q, author, sort, opOnly, startTs, endTs, useUserPosts: ftsCurrentUid ? true : false };
+        if (!suppressUrlUpdate) updateFtsUrl();
+        runFtsQuery(true);
+    }
+
+    async function runFtsQuery(replace = false) {
+        const container = document.getElementById('fts-results');
+        if (replace) {
+            container.innerHTML = `<div style="text-align:center;padding:30px;color:#555;">
+                <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching…</div>`;
+        }
+
+        const currentOpOnly = document.getElementById('ftsOpOnly').checked ? '1' : '0';
+        const { q, author, sort, startTs, endTs, useUserPosts } = ftsLastParams || {};
+
+        let url;
+        if (useUserPosts && ftsCurrentUid) {
+            const p = new URLSearchParams({ uid: ftsCurrentUid, offset: ftsOffset, limit: FTS_PAGE_SIZE, op_only: currentOpOnly });
+            url = `/api/user_posts?${p}`;
+        } else {
+            const p = new URLSearchParams({ q: q || '', sort: sort || 'desc', offset: ftsOffset, limit: FTS_PAGE_SIZE, op_only: currentOpOnly });
+            if (author)  p.set('uid', author);
+            if (startTs) p.set('start_ts', startTs);
+            if (endTs)   p.set('end_ts', endTs);
+            url = `/api/search_posts?${p}`;
+        }
+        console.debug('[fts] requesting', { url, ftsCurrentUid, ftsLastParams, currentOpOnly });
+
+        const t0 = performance.now();
+        try {
+            const res  = await fetch(url);
+            console.debug('[fts] response', { url, ok: res.ok, status: res.status });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+
+            const rows = data.results || data.posts || [];
+            const ms   = (performance.now() - t0).toFixed(1);
+
+            if (replace) container.innerHTML = '';
+
+            if (rows.length === 0 && ftsOffset === 0) {
+                container.innerHTML = `<p style="color:#555;text-align:center;padding:20px;">${currentOpOnly === '1' ? 'No thread starters found.' : 'No posts found.'}</p>`;
+                return;
+            }
+
+            ftsTotalShown += rows.length;
+            ftsOffset     += rows.length;
+            ftsExhausted   = rows.length < FTS_PAGE_SIZE;
+
+            rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
+
+            const metricsEl = document.getElementById('fts-metrics');
+            metricsEl.textContent = `Showing ${ftsTotalShown} post(s) — loaded in ${ms} ms`;
+            metricsEl.style.display = 'block';
+            document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
+
+        } catch (err) {
+            container.innerHTML = `<p style="color:#cd1818;text-align:center;padding:20px;">Search error: ${escapeHTML(err.message)}</p>`;
+        }
+    }
+
+    function loadMoreFts() {
+        if (!ftsExhausted && ftsLastParams) runFtsQuery(false);
+    }
+
+    function buildFtsResultRow(post) {
+        const div         = document.createElement('div');
+        div.className     = 'post-result-card';
+        const threadId    = post.thread_id || '';
+        const threadTitle = decodeEntities(post.thread_title || post.title || '');
+        const authorName  = post.author_username || 'Unknown';
+        const authorId    = post.author_id || '';
+        const date        = post.post_date || 'Archived Post';
+        // Strip HTML tags for snippet
+        const snippet     = (post.post_description || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim().slice(0, 220);
+
+        div.innerHTML = `
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                <div>
+                    <span class="post-result-author" data-uid="${escapeHTML(String(authorId))}" data-username="${escapeHTML(authorName)}"
+                        style="cursor:pointer;" title="View profile">${escapeHTML(authorName)}</span>
+                    <span class="post-result-date">&nbsp;·&nbsp;${escapeHTML(date)}</span>
+                    ${post.is_op ? '<span style="font-size:10px;background:#2a0a0a;color:#cd1818;border:1px solid #5a0a0a;padding:1px 5px;border-radius:3px;margin-left:5px;">OP</span>' : ''}
+                </div>
+                ${threadId ? `<span class="post-result-thread-link" data-tid="${escapeHTML(String(threadId))}" title="Open thread #${escapeHTML(String(threadId))}">
+                    <i class="fa fa-external-link" style="font-size:10px;"></i> ${escapeHTML(threadTitle || `Thread #${threadId}`)}
+                </span>` : ''}
+            </div>
+            <div class="post-result-snippet">${escapeHTML(snippet)}${snippet.length >= 220 ? '…' : ''}</div>`;
+
+        div.querySelector('.post-result-author').onclick = () => {
+            if (authorId) showUserProfile(String(authorId), authorName);
+        };
+        const tLink = div.querySelector('.post-result-thread-link');
+        if (tLink) {
+            tLink.onclick = (e) => {
+                e.preventDefault();
+                const tid = tLink.getAttribute('data-tid');
+                setUrlState({ id: tid });
+                fetchAndRenderThread(tid, post.post_id || null);
+            };
+        }
+        return div;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // DOM READY
+    // ════════════════════════════════════════════════════════════════════════
+    document.addEventListener("DOMContentLoaded", async function () {
+        const loadingScreen = document.getElementById('loading-screen');
+        const content       = document.getElementById('content');
+        const loadingText   = document.getElementById('loading-text');
+        const statusText    = document.getElementById('index-status');
+
+        document.getElementById('searchTarget').addEventListener('change', function () {
+            const v = this.value;
+            const lbl = document.getElementById('inputLabel');
+            const inp = document.getElementById('searchInput');
+            if (v === 'author')    { lbl.innerText = '3. Target Username';  inp.placeholder = 'e.g., moonwalk'; }
+            else if (v === 'author_id') { lbl.innerText = '3. Target Author ID'; inp.placeholder = 'e.g., 7919002'; }
+            else                   { lbl.innerText = '3. Search Keywords...'; inp.placeholder = 'Type keywords here...'; }
+        });
+
+        try {
+            // Quick ping to /api/titles to verify backend is up and get thread count
+            const res = await fetch('/api/titles');
+            if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
+            const data = await res.json();
+            const count = data.thread_count || '?';
+            statusText.innerHTML = `Archive online. Threads indexed: ${Number(count).toLocaleString()}`;
+            content.style.display = 'block';
+            loadingScreen.style.display = 'none';
+            checkDeepLinkingParameter();
+        } catch (err) {
+            loadingText.innerHTML = `<span class="text-danger">Failed to connect to archive backend.<br>${err.message}</span>`;
+        }
+    });
+
+    // ════════════════════════════════════════════════════════════════════════
+    // DEEP LINKING
+    // ════════════════════════════════════════════════════════════════════════
+    function checkDeepLinkingParameter() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const targetThreadId = urlParams.get('id');
+        if (targetThreadId) { fetchAndRenderThread(targetThreadId); return; }
+
+        const mode = urlParams.get('mode');
+        if (mode === 'fts') {
+            switchMode('fts');
+            const q      = urlParams.get('q')   || '';
+        const author = urlParams.get('uid') || '';
+        if (q)      document.getElementById('ftsInput').value  = q;
+        if (author) document.getElementById('ftsAuthor').value = author;
+        if (q || author) {
+            suppressUrlUpdate = true;
+            triggerFtsSearch();
+            suppressUrlUpdate = false;
+        }
+        return;
+        }
+
+        const cat   = urlParams.get('cat')   || '';
+        const query = urlParams.get('q')     || '';
+        const sort  = urlParams.get('sort')  || 'relevance';
+        const order = urlParams.get('order') || 'asc';
+        const smode = urlParams.get('smode') || 'title';
+
+        if (cat) document.getElementById('categoryDropdown').value = cat;
+        if (smode) {
+            const ms = document.getElementById('searchTarget');
+            ms.value = smode; ms.dispatchEvent(new Event('change'));
+        }
+        if (query) document.getElementById('searchInput').value = query;
+        if (sort)  document.getElementById('sortBy').value  = sort;
+        if (order) document.getElementById('sortOrder').value = order;
+
+        if (cat || query || sort !== 'relevance' || order !== 'asc') {
+            indexLastParams = { q: query, cat, smode, sort, order };
+            suppressUrlUpdate = true;
+            runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
+            suppressUrlUpdate = false;
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // POST RENDERER
+    // ════════════════════════════════════════════════════════════════════════
+    let postCounter = 0;
+
+    function escapeHTML(str) {
+        return String(str)
+            .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+            .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+    }
+
+    function decodeEntities(str) {
+        if (!str) return '';
+        return str.replace(/&amp;/g, '&')
+                .replace(/&lt;/g, '<')
+                .replace(/&gt;/g, '>')
+                .replace(/&quot;/g, '"')
+                .replace(/&#0?39;/g, "'"); // Catches both &#39; and &#039;
+    }
+
+    const IFRAMELY_ENDPOINT = '/iframely';
+    const IMAGE_HOSTS = new Set(['i.imgur.com','cdn.discordapp.com','media.discordapp.net','i.redd.it','preview.redd.it','pbs.twimg.com','i.gyazo.com','cdn.gyazo.com','i.prntscr.com','images-ext-1.discordapp.net','images-ext-2.discordapp.net']);
+    const IMAGE_EXTS  = new Set(['png','jpg','jpeg','gif','webp','bmp','avif']);
+    const IFRAMELY_HOSTS = new Set(['youtube.com','www.youtube.com','youtu.be','streamable.com','www.streamable.com','gyazo.com','www.gyazo.com','twitch.tv','www.twitch.tv','clips.twitch.tv','medal.tv','www.medal.tv','prntscr.com','www.prntscr.com','imgur.com','www.imgur.com','imgbb.com','www.imgbb.com','flickr.com','www.flickr.com','tenor.com','www.tenor.com','giphy.com','www.giphy.com','vimeo.com','www.vimeo.com','reddit.com','www.reddit.com','v.redd.it','instagram.com','www.instagram.com','tiktok.com','www.tiktok.com','soundcloud.com','www.soundcloud.com','open.spotify.com']);
+
+    function isImageUrl(raw) {
+        try {
+            const url = new URL(raw);
+            if (IMAGE_HOSTS.has(url.hostname)) return true;
+            const ext = url.pathname.split('.').pop().toLowerCase();
+            if (IMAGE_EXTS.has(ext)) return true;
+            return false;
+        } catch { return false; }
+    }
+    function isIframelyUrl(raw) {
+        try { return IFRAMELY_HOSTS.has(new URL(raw).hostname); } catch { return false; }
+    }
+
+    const _iframelyCache = new Map();
+    async function fetchIframelyEmbed(url) {
+        if (_iframelyCache.has(url)) return _iframelyCache.get(url);
+        try {
+            const res  = await fetch(`${IFRAMELY_ENDPOINT}?url=${encodeURIComponent(url)}`, { signal: AbortSignal.timeout(8000) });
+            if (!res.ok) throw new Error('iframely non-ok');
+            const data = await res.json();
+            const allLinks  = Object.values(data.links || {}).flat();
+            const embedLink = allLinks.find(l => l.html && (l.rel?.includes('player') || l.rel?.includes('app') || l.rel?.includes('reader')));
+            const html      = embedLink?.html || null;
+            _iframelyCache.set(url, html || 'error');
+            return html;
+        } catch {
+            _iframelyCache.set(url, 'error');
+            return null;
+        }
+    }
+
+    async function resolveIframelySlots(container) {
+        const slots = container.querySelectorAll('[data-iframely-url]');
+
+        await Promise.allSettled([...slots].map(async (slot) => {
+            const url = slot.getAttribute('data-iframely-url');
+            const html = await fetchIframelyEmbed(url);
+
+            if (html && html !== 'error') {
+
+                // Remove deprecated allowfullscreen attribute
+                const cleanHTML = html.replace(/\sallowfullscreen(\s|>)/gi, '$1');
+
+                slot.innerHTML = cleanHTML;
+
+                // Re-run embed scripts
+                slot.querySelectorAll('script').forEach(oldScript => {
+                    const newScript = document.createElement('script');
+
+                    [...oldScript.attributes].forEach(attr => {
+                        newScript.setAttribute(attr.name, attr.value);
+                    });
+
+                    newScript.textContent = oldScript.textContent;
+
+                    oldScript.parentNode.replaceChild(newScript, oldScript);
+                });
+
+            } else {
+                slot.outerHTML = `<a href="${escapeHTML(url)}" target="_blank" rel="noopener" style="color:#cd1818;">${escapeHTML(url)}</a>`;
+            }
+        }));
+    }
+
+    /**
+     * Render stored HTML post_description.
+     * The parser already converted the MyBB HTML into clean markup with:
+     *   - [CODE_START]...[CODE_END] sentinels for code blocks
+     *   - <div class="v3rm-spoiler">...</div> for spoilers
+     *   - markdown-style image/link syntax for assets
+     *   - plain text for everything else
+     *
+     * We render it directly as HTML but apply syntax highlighting to code blocks
+     * and wire up spoiler toggle buttons.
+     */
+    function renderPostBody(container, rawHtml) {
+        if (!rawHtml) { container.innerHTML = ''; return; }
+
+        // ------------------------------------------------------------------
+        // 1. Handle [CODE_START]...[CODE_END] sentinels → highlighted blocks
+        // ------------------------------------------------------------------
+        const LANG_MAP = {
+            'lua':'lua','python':'python','javascript':'javascript','java':'java',
+            'cpp':'cpp','c++':'cpp','c':'c','csharp':'csharp','c#':'csharp',
+            'ruby':'ruby','php':'php','bash':'bash','shell':'shell','sql':'sql',
+            'html':'xml','xml':'xml','css':'css','json':'json',
+        };
+
+        const AUTO_LANGS = ['lua','python','javascript','typescript','java','cpp','c','csharp','php','ruby','bash','shell','sql','xml','css','json'];
+
+        function detectCodeLanguage(code) {
+            const s = String(code || '');
+            const trimmed = s.trim();
+            if (!trimmed) return null;
+
+            const scores = new Map(AUTO_LANGS.map(lang => [lang, 0]));
+            const add = (lang, pts) => scores.set(lang, (scores.get(lang) || 0) + pts);
+            const has = (re) => re.test(s);
+
+            if ((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']'))) {
+                try { JSON.parse(trimmed); add('json', 12); } catch {}
+            }
+
+            if (has(/<\?php|\$[A-Za-z_]\w*\s*=|echo\s+['"]/)) add('php', 8);
+            if (has(/\b(local|end|then|elseif)\b|--\[\[|--[^\n]*|\bgame:GetService\b|\bscript\.Parent\b|\bwait\(/)) add('lua', 10);
+            if (has(/\b(def|elif|self|lambda|import|from)\b|:\s*(#.*)?\n\s+\w|\bprint\(/)) add('python', 8);
+            if (has(/\b(function|const|let|var|=>|document\.|window\.|console\.log|require\(|import\s+.*from)\b/)) add('javascript', 8);
+            if (has(/\binterface\s+\w+|:\s*(string|number|boolean|any)\b|as\s+const\b|type\s+\w+\s*=/)) add('typescript', 8);
+            if (has(/\busing\s+System\b|\bnamespace\s+\w+|\bpublic\s+(class|static)|Console\.WriteLine|List<\w+>/)) add('csharp', 9);
+            if (has(/\b#include\s*<|std::|cout\s*<<|cin\s*>>|\bint\s+main\s*\(/)) add('cpp', 9);
+            if (has(/\b(public|private|protected)\s+class\b|System\.out\.println|new\s+\w+\(|@\w+\b/)) add('java', 7);
+            if (has(/\bSELECT\b|\bFROM\b|\bWHERE\b|\bJOIN\b|\bINSERT\b|\bUPDATE\b|\bDELETE\b/i)) add('sql', 8);
+            if (has(/^\s*(#!\/bin\/|sudo\s+|apt\s+|cd\s+|mkdir\s+|chmod\s+|curl\s+|wget\s+|echo\s+)/m)) add('bash', 7);
+            if (has(/<\/?[a-z][\s\S]*>/i)) add('xml', 7);
+            if (has(/[.#]?[A-Za-z_-][\w-]*\s*\{[\s\S]*:[\s\S]*\}/)) add('css', 7);
+
+            const best = [...scores.entries()].sort((a, b) => b[1] - a[1])[0];
+            return best && best[1] >= 7 ? best[0] : null;
+        }
+
+        function makeCodeBlock(rawCode, langHint) {
+            const cleanCode = String(rawCode || '').replace(/^(?:\r?\n)+/, '').replace(/(?:\r?\n)+$/, '');
+            const hintedLang = LANG_MAP[(langHint||'').toLowerCase().trim()] || null;
+            const detectedHint = hintedLang || detectCodeLanguage(cleanCode);
+            const hljsLang = detectedHint && LANG_MAP[detectedHint] ? LANG_MAP[detectedHint] : detectedHint;
+            let result;
+            if (typeof hljs !== 'undefined') {
+                result = hljsLang && hljs.getLanguage(hljsLang)
+                    ? hljs.highlight(cleanCode, { language: hljsLang })
+                    : hljs.highlightAuto(cleanCode, AUTO_LANGS.filter(lang => hljs.getLanguage(lang)));
+            }
+            const highlighted  = result ? result.value : escapeHTML(cleanCode);
+            const detectedLang = (result?.language || hljsLang || 'code').toUpperCase();
+            return `<div class="v3rm-code-container"><div style="background:#161616;color:#aaa;padding:6px 12px;font-family:monospace;font-size:11px;border-bottom:1px solid #222;">Code: ${detectedLang}</div><pre><code class="hljs">${highlighted}</code></pre></div>`;
+        }
+
+        // Split on code sentinels
+        const parts = rawHtml.split(/\[CODE_START\]|\[CODE_END\]/);
+        let processed = '';
+        if (parts.length === 1) {
+            processed = rawHtml;
+        } else {
+            if (parts[0]) processed += parts[0];
+            for (let i = 1; i < parts.length; i += 2) {
+                processed += makeCodeBlock(parts[i] || '', '');
+                if (parts[i + 1]) processed += parts[i + 1];
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // 2. Handle inline URLs in text nodes — image/iframely
+        //    (parser already converted most, but plain URLs may remain)
+        // ------------------------------------------------------------------
+        // We'll handle this post-innerHTML via DOM walk to avoid breaking tags
+
+        function escapeAttr(str) {
+            return escapeHTML(str);
+        }
+
+        function normalizeMarkdownUrl(raw) {
+            const trimmed = String(raw || '').trim();
+            try {
+                return encodeURI(decodeURI(trimmed));
+            } catch {
+                return encodeURI(trimmed);
+            }
+        }
+
+        processed = processed
+            .replace(/\r\n?/g, '\n')
+            .replace(/\n[ \t\u00a0]*\n(?:[ \t\u00a0]*\n)+/g, '\n\n');
+
+        function decodeWrappedUrl(raw) {
+            let value = String(raw || '').trim();
+            for (let i = 0; i < 3; i++) {
+                try {
+                    const decoded = decodeURIComponent(value);
+                    if (decoded === value) break;
+                    value = decoded;
+                } catch {
+                    break;
+                }
+            }
+            return value;
+        }
+
+        function unwrapExternalImageProxy(raw) {
+            let src = String(raw || '').trim();
+            const localWrapped = src.match(/^\/static\/images\/(https?:\/\/.+)$/i) || src.match(/^\/images\/(https?:\/\/.+)$/i);
+            if (localWrapped) src = localWrapped[1];
+
+            try {
+                const url = new URL(src, window.location.origin);
+                const host = url.hostname.toLowerCase();
+                const wrappedUrl = url.searchParams.get('u') || url.searchParams.get('url');
+                if (wrappedUrl && (host === 'external-content.duckduckgo.com' || host.endsWith('.duckduckgo.com'))) {
+                    return normalizeMarkdownUrl(decodeWrappedUrl(wrappedUrl));
+                }
+            } catch {}
+
+            return normalizeMarkdownUrl(src);
+        }
+
+        function markdownImageHtml(alt, src) {
+            const safeSrc = unwrapExternalImageProxy(src);
+            const safeAlt = escapeAttr(alt);
+            if (isIframelyUrl(safeSrc)) {
+                return `<div class="v3rm-embed-slot" data-iframely-url="${escapeAttr(safeSrc)}"><span class="embed-loading">Loading embed…</span></div>`;
+            }
+            return `<img src="${escapeAttr(safeSrc)}" alt="${safeAlt}" class="v3rm-embedded-img" loading="lazy">`;
+        }
+
+        function markdownLinkHtml(text, href) {
+            const safeHref = normalizeMarkdownUrl(href);
+            return `<a href="${escapeAttr(safeHref)}" target="_blank" rel="noopener">${escapeHTML(String(text || '').trim())}</a>`;
+        }
+
+        // Convert markdown image/link syntax emitted by the parser before
+        // bare URL detection, so URLs inside markdown are never linkified twice.
+        processed = processed
+            .replace(/!\[([\s\S]*?)\]\(([^)\s]+(?:\s+[^)]*?)?)\)/g, (_, alt, src) => markdownImageHtml(alt, src))
+            .replace(/(^|[^!])\[([\s\S]*?)\]\(([^)\s]+(?:\s+[^)]*?)?)\)/g, (_, prefix, text, href) => {
+                return prefix + markdownLinkHtml(text, href);
+            });
+
+        container.innerHTML = processed;
+
+        // ------------------------------------------------------------------
+        // 3. Wire spoiler toggles for <div class="v3rm-spoiler"> elements
+        // ------------------------------------------------------------------
+        container.querySelectorAll('div.v3rm-spoiler').forEach(spoilerDiv => {
+            const wrap   = document.createElement('div');
+            wrap.className = 'v3rm-spoiler-wrap';
+
+            const toggle = document.createElement('div');
+            toggle.className = 'v3rm-spoiler-toggle';
+            toggle.innerHTML = '<span class="spoiler-arrow">▶</span> Spoiler';
+
+            const body = document.createElement('div');
+            body.className = 'v3rm-spoiler-body';
+            // Move children from the parser's v3rm-spoiler div into our body
+            while (spoilerDiv.firstChild) body.appendChild(spoilerDiv.firstChild);
+
+            toggle.addEventListener('click', () => {
+                const open = body.classList.toggle('open');
+                toggle.classList.toggle('open', open);
+            });
+
+            wrap.appendChild(toggle);
+            wrap.appendChild(body);
+            spoilerDiv.replaceWith(wrap);
+        });
+
+        // ------------------------------------------------------------------
+        // 4. Remove leaked MyBB spoiler/collapse UI anchors
+        // ------------------------------------------------------------------
+        container.querySelectorAll('a[href^="javascript:void"]').forEach(link => {
+            const rawText = link.textContent || '';
+            const cleanedText = rawText
+                .replace(/<img\b[^>]*collapse(?:_collapsed)?\.(?:png|gif)[^>]*>/ig, '')
+                .trim();
+
+            if (cleanedText) {
+                link.replaceWith(document.createTextNode(cleanedText));
+            } else {
+                link.remove();
+            }
+        });
+
+        // ------------------------------------------------------------------
+        // 5. Plain image markdown ![](...) not already converted by parser
+        //    Process any bare image URLs left as text or in <a> tags
+        // ------------------------------------------------------------------
+        container.querySelectorAll('img').forEach(img => {
+            const rawSrc = img.getAttribute('src') || img.src || '';
+            const rawAlt = img.getAttribute('alt') || '';
+            const iconName = rawSrc.split('?')[0].split('/').pop().toLowerCase();
+            if ((iconName === 'collapse_collapsed.png' || iconName === 'collapse.png' || iconName === 'collapse_collapsed.gif' || iconName === 'collapse.gif')
+                && (rawAlt === '[+]' || rawAlt === '[-]' || rawAlt === '+' || rawAlt === '-')) {
+                img.remove();
+                return;
+            }
+            img.className = 'v3rm-embedded-img';
+            img.loading   = 'lazy';
+            if (!img.alt) img.alt = '';
+            img.src = unwrapExternalImageProxy(rawSrc);
+        });
+
+        // ------------------------------------------------------------------
+        // 6. Bare URLs in text — wrap iframely hosts in embed slots
+        // ------------------------------------------------------------------
+        // Walk text nodes and replace bare URLs
+        function wrapBareUrls(container) {
+            function _walk(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    // If the immediate parent is a link or code container, do not touch it
+                    const parentTag = node.parentNode ? node.parentNode.tagName.toLowerCase() : '';
+                    if (['a', 'script', 'style', 'code', 'pre'].includes(parentTag)) return;
+
+                    const text = node.nodeValue;
+                    // Match URLs up to whitespace or obvious closing delimiters.
+                    const parts = text.split(/(https?:\/\/[^\s<>"'\]\)]+)/g);
+                    if (parts.length <= 1) return;
+
+                    const frag = document.createDocumentFragment();
+                    parts.forEach((part, i) => {
+                        if (i % 2 === 0) {
+                            frag.appendChild(document.createTextNode(part));
+                        } else {
+                            // Extract trailing punctuation dynamically from the match without eating valid query parameter bounds
+                            let url = part;
+                            const trailingMatch = url.match(/['";.,\)>]+$/);
+                            let trailingText = '';
+                            if (trailingMatch) {
+                                trailingText = trailingMatch[0];
+                                url = url.slice(0, -trailingText.length);
+                            }
+                            url = url.trim();
+
+                            if (isImageUrl(url)) {
+                                const img = document.createElement('img');
+                                img.src = url;
+                                img.className = 'v3rm-embedded-img';
+                                img.loading = 'lazy';
+                                frag.appendChild(img);
+                            } else if (isIframelyUrl(url)) {
+                                const slot = document.createElement('div');
+                                slot.className = 'v3rm-embed-slot';
+                                slot.setAttribute('data-iframely-url', url);
+                                slot.innerHTML = '<span class="embed-loading">Loading embed…</span>';
+                                frag.appendChild(slot);
+                            } else {
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.target = '_blank';
+                                a.rel = 'noopener';
+                                a.textContent = url;
+                                frag.appendChild(a);
+                            }
+
+                            if (trailingText) {
+                                frag.appendChild(document.createTextNode(trailingText));
+                            }
+                        }
+                    });
+                    node.parentNode.replaceChild(frag, node);
+                } else if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName.toLowerCase();
+                    if (!['script', 'style', 'code', 'pre', 'a'].includes(tag)) {
+                        [...node.childNodes].forEach(_walk);
+                    }
+                }
+            }
+            _walk(container);
+        }
+        wrapBareUrls(container);
+
+        container.normalize();
+        [...container.childNodes].forEach(node => {
+            if (node.nodeType !== Node.TEXT_NODE) return;
+            const nextTag = node.nextSibling && node.nextSibling.nodeType === Node.ELEMENT_NODE
+                ? node.nextSibling.tagName.toLowerCase()
+                : '';
+            const prevTag = node.previousSibling && node.previousSibling.nodeType === Node.ELEMENT_NODE
+                ? node.previousSibling.tagName.toLowerCase()
+                : '';
+            const nextIsMediaBlock = node.nextSibling && node.nextSibling.nodeType === Node.ELEMENT_NODE
+                && (node.nextSibling.classList.contains('v3rm-embed-slot')
+                    || node.nextSibling.classList.contains('v3rm-code-container')
+                    || node.nextSibling.classList.contains('v3rm-embedded-img'));
+            const prevIsMediaBlock = node.previousSibling && node.previousSibling.nodeType === Node.ELEMENT_NODE
+                && (node.previousSibling.classList.contains('v3rm-embed-slot')
+                    || node.previousSibling.classList.contains('v3rm-code-container')
+                    || node.previousSibling.classList.contains('v3rm-embedded-img'));
+
+            if (['a', 'img', 'div', 'iframe'].includes(nextTag)) {
+                node.nodeValue = node.nodeValue.replace(/[ \t\u00a0]+$/g, '');
+                node.nodeValue = node.nodeValue.replace(/(\n)[ \t\u00a0]+$/g, '$1');
+            }
+            if (['a', 'img', 'div', 'iframe'].includes(prevTag)) {
+                node.nodeValue = node.nodeValue.replace(/^[ \t\u00a0]+/g, '');
+            }
+            if (nextIsMediaBlock) {
+                node.nodeValue = node.nodeValue.replace(/[ \t\u00a0]*\n[ \t\u00a0]*(?:\n[ \t\u00a0]*)+$/g, '\n');
+            }
+            if (prevIsMediaBlock) {
+                node.nodeValue = node.nodeValue.replace(/^[ \t\u00a0]*\n[ \t\u00a0]*(?:\n[ \t\u00a0]*)+/g, '\n');
+            }
+            node.nodeValue = node.nodeValue.replace(/\n[ \t\u00a0]+(?=\S)/g, '\n');
+        });
+
+        container.querySelectorAll('a').forEach(link => {
+            const next = link.nextSibling;
+            if (next && next.nodeType === Node.TEXT_NODE) {
+                next.nodeValue = next.nodeValue.replace(/^[ \t\u00a0]*\n[ \t\u00a0]*/g, ' ');
+            }
+            const prev = link.previousSibling;
+            if (prev && prev.nodeType === Node.TEXT_NODE) {
+                if (/^[ \t\u00a0]+$/.test(prev.nodeValue)) {
+                    prev.remove();
+                } else {
+                    prev.nodeValue = prev.nodeValue.replace(/[ \t\u00a0]*\n[ \t\u00a0]*$/g, '\n');
+                }
+            }
+        });
+    }
+
+    function parseFallbackDate(post) {
+        if (post.post_date && post.post_date.trim() !== '') return post.post_date;
+        if (post.last_edit && post.last_edit.includes('modified:')) {
+            const m = post.last_edit.match(/modified:\s*([^)]+)/i);
+            if (m && m[1]) return m[1].trim();
+        }
+        return 'Archived Post';
+    }
+
+    function buildPostHTML(post, isOP = false, depth = 0) {
+        postCounter++;
+        const num = postCounter;
+
+        const authorName  = post.author_username || 'Unknown';
+        const authorId    = post.author_id       || '';
+        const displayDate = parseFallbackDate(post);
+
+        let editNotice = '';
+        const postDateStr = (post.post_date || '').trim();
+        const lastEditStr = (post.last_edit  || '').trim();
+        if (lastEditStr && postDateStr && lastEditStr !== postDateStr) {
+            editNotice = `(This post was last modified: ${lastEditStr} by ${authorName})`;
+        }
+
+        const statsLine   = '';
+        const rankBadge   = post.user_rank  ? `<span style="font-size:10px;background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:1px 5px;border-radius:3px;margin-left:5px;">${escapeHTML(post.user_rank)}</span>` : '';
+        const titleLine   = post.user_title ? `<div style="font-size:11px;color:#666;font-style:italic;margin-top:1px;">${escapeHTML(post.user_title)}</div>` : '';
+        const starsLine   = (post.user_stars > 0) ? `<div style="font-size:10px;color:#888;margin-top:1px;">${'★'.repeat(Math.min(post.user_stars, 10))}</div>` : '';
+        const repLine     = (post.reputation != null && post.reputation !== '') ? `<div style="font-size:10px;margin-top:1px;">Rep: <strong style="color:${parseInt(post.reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(post.reputation))}</strong></div>` : '';
+        const postIdBadge   = post.post_id ? `<span style="font-size:10px;color:#444;margin-left:6px;">post_${escapeHTML(String(post.post_id))}</span>` : '';
+        const authorIdBadge = authorId     ? `<span style="font-size:10px;color:#444;margin-left:6px;">uid_${escapeHTML(String(authorId))}</span>`   : '';
+
+        const authorClick = authorId
+            ? `onclick="showUserProfile('${escapeHTML(String(authorId))}','${escapeHTML(authorName)}')" title="View profile"`
+            : '';
+
+        // Build post element (use DOM to safely inject HTML body)
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = `
+            <div class="v3rm-post">
+                <div class="v3rm-post-head">
+                    <span class="v3rm-post-date-wrapper">
+                        <span>${displayDate} by ${escapeHTML(authorName)}</span>
+                        ${editNotice ? `<span class="v3rm-edited">${escapeHTML(editNotice)}</span>` : ''}
+                        ${authorIdBadge}${postIdBadge}
+                    </span>
+                    <span class="v3rm-post-num">#${num}</span>
+                </div>
+                <div class="v3rm-post-author">
+                    <div class="w-100">
+                        <div class="d-flex align-items-center">
+                            <div class="v3rm-author-name ${isOP ? 'op' : ''}" ${authorClick}>
+                                <strong>${escapeHTML(authorName)}</strong>
+                                ${isOP ? '<span style="font-size:10px;color:#888;">[OP]</span>' : ''}
+                            </div>
+                            ${rankBadge}
+                        </div>
+                        ${titleLine}${starsLine}${repLine}
+                    </div>
+                </div>
+                <div class="v3rm-post-content">
+                    <div class="v3rm-post-body" data-post-body="1"></div>
+                    <div class="v3rm-post-footer">
+                        <span class="v3rm-like-btn"><i class="fa fa-thumbs-o-up"></i> ${escapeHTML(String(post.likes || '0'))}</span>
+                        <span class="v3rm-like-btn"><i class="fa fa-thumbs-o-down"></i> ${escapeHTML(String(post.dislikes || '0'))}</span>
+                    </div>
+                </div>
+                <div class="v3rm-post-controls">
+                    ${post.replied_to ? `<span style="color:#888;font-size:11px;">↩ Reply to <strong style="color:#cd1818;">${escapeHTML(post.replied_to)}</strong> (${escapeHTML(post.replied_to_post_date || '')})</span>` : ''}
+                </div>
+            </div>`;
+
+        // Safely render the HTML post body (handles spoilers, images, code, etc.)
+        const bodyEl = wrapper.querySelector('[data-post-body]');
+        renderPostBody(bodyEl, post.post_description || '');
+
+        // Recurse into replies
+        if (post.replies && post.replies.length > 0) {
+            const replyWrap = document.createElement('div');
+            replyWrap.className = 'v3rm-reply-wrap';
+            post.replies.forEach(r => replyWrap.appendChild(buildPostHTML(r, false, depth + 1)));
+            wrapper.appendChild(replyWrap);
+        }
+
+        return wrapper;
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // THREAD VIEWER MODAL
+    // ════════════════════════════════════════════════════════════════════════
+    function showThreadViewerModal(data, id = '', jumpToPostId = null) {
+        document.querySelectorAll('.viewer-overlay').forEach(e => e.remove());
+
+        const POSTS_PER_PAGE = 50;
+        const threadRow      = data.thread || {};
+        
+        // ─── ENTITY DECODER INTEGRATION ───
+        // Clean out raw HTML encoded values instantly before processing escaping rules
+        const cleanTitle     = decodeEntities(threadRow.title || 'Untitled Thread').trim();
+
+        let categories = [];
+        try { 
+            categories = typeof threadRow.categories === 'string' ? JSON.parse(threadRow.categories) : (threadRow.categories || []); 
+        } catch {}
+        
+        // Clean category items as well
+        const sanitizedCategories = categories.map(cat => decodeEntities(cat));
+        const categoryBreadcrumbs = sanitizedCategories.length > 0 ? sanitizedCategories.join(' » ') : '';
+        // ──────────────────────────────────
+
+        const posts         = data.posts || [];
+        const allTopLevel   = posts.map((post, idx) => ({ post, isOP: idx === 0 }));
+        const totalPosts    = allTopLevel.length;
+        const totalPages    = Math.max(1, Math.ceil(totalPosts / POSTS_PER_PAGE));
+        let currentModalPage = 1;
+
+        if (jumpToPostId) {
+            const idx = allTopLevel.findIndex(e => String(e.post.post_id) === String(jumpToPostId));
+            if (idx !== -1) currentModalPage = Math.ceil((idx + 1) / POSTS_PER_PAGE);
+        }
+
+        const overlay = document.createElement('div');
+        overlay.className = 'viewer-overlay';
+        overlay.innerHTML = `
+            <div class="viewer-card">
+                <div class="viewer-header">
+                    <div style="overflow:hidden;flex-grow:1;">
+                        <div class="d-flex align-items-center" style="gap:10px;">
+                            <div class="viewer-header-title" title="${escapeHTML(cleanTitle)}" style="max-width:80%;">${escapeHTML(cleanTitle)}</div>
+                            ${id ? `<button class="copy-link-btn" id="modal-copy-btn" data-thread-id="${id}"><i class="fa fa-link"></i> Copy Link</button>` : ''}
+                        </div>
+                        ${categoryBreadcrumbs ? `<div class="v3rm-category-path" style="margin-top:2px;">${escapeHTML(categoryBreadcrumbs)}</div>` : ''}
+                    </div>
+                    <button class="viewer-close-btn" id="close-modal-btn">✕ Close</button>
+                </div>
+                <div id="modal-post-pagination" style="display:none;padding:6px 10px;background:#111;border-bottom:1px solid #222;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;flex-shrink:0;"></div>
+                <div class="viewer-body" id="modal-viewer-body"></div>
+            </div>`;
+        document.body.appendChild(overlay);
+
+        function renderModalPage(page) {
+            currentModalPage = page;
+            postCounter = 0;
+            const viewerBody = overlay.querySelector('#modal-viewer-body');
+            viewerBody.innerHTML = '';
+            viewerBody.scrollTop = 0;
+
+            const start = (page - 1) * POSTS_PER_PAGE;
+            const slice = allTopLevel.slice(start, start + POSTS_PER_PAGE);
+
+            if (!slice.length) {
+                viewerBody.innerHTML = '<p style="color:#666;padding:20px;text-align:center;">No posts found for this thread.</p>';
+            } else {
+                const frag = document.createDocumentFragment();
+                slice.forEach(({ post, isOP }) => frag.appendChild(buildPostHTML(post, isOP, 0)));
+                viewerBody.appendChild(frag);
+                resolveIframelySlots(viewerBody);
+            }
+            renderModalPagination();
+
+            if (jumpToPostId && page === currentModalPage) {
+                setTimeout(() => {
+                    const allPostEls = viewerBody.querySelectorAll('.v3rm-post');
+                    const localIdx   = allTopLevel.slice(start, start + POSTS_PER_PAGE)
+                        .findIndex(e => String(e.post.post_id) === String(jumpToPostId));
+                    if (localIdx !== -1 && allPostEls[localIdx]) {
+                        allPostEls[localIdx].scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                }, 80);
+            }
+        }
+
+        function renderModalPagination() {
+            const bar = overlay.querySelector('#modal-post-pagination');
+            if (totalPages <= 1) { bar.style.display = 'none'; return; }
+            bar.style.display = 'flex';
+            const s = (dis, act) => {
+                const b = 'border:1px solid #2a2a2a;padding:2px 8px;font-size:11px;cursor:pointer;border-radius:2px;';
+                if (dis) return b + 'background:#0a0a0a;color:#333;cursor:not-allowed;';
+                if (act) return b + 'background:#cd1818;border-color:#cd1818;color:#fff;';
+                return b + 'background:#1a1a1a;color:#cd1818;';
+            };
+            let html = `<span style="font-size:11px;color:#666;">Page ${currentModalPage} of ${totalPages} &nbsp;·&nbsp; ${totalPosts} posts</span>`;
+            html += '<div style="display:flex;gap:4px;flex-wrap:wrap;">';
+            html += `<button onclick="modalGoTo(${currentModalPage-1})" style="${s(currentModalPage<=1)}">&laquo; Prev</button>`;
+            let sp = Math.max(1, currentModalPage-3), ep = Math.min(totalPages, sp+6);
+            if (ep-sp<6) sp = Math.max(1, ep-6);
+            for (let i=sp;i<=ep;i++) html += `<button onclick="modalGoTo(${i})" style="${s(false,i===currentModalPage)}">${i}</button>`;
+            html += `<button onclick="modalGoTo(${currentModalPage+1})" style="${s(currentModalPage>=totalPages)}">Next &raquo;</button>`;
+            html += '</div>';
+            bar.innerHTML = html;
+        }
+
+        window.modalGoTo = (page) => {
+            if (page < 1 || page > totalPages) return;
+            renderModalPage(page);
+        };
+
+        renderModalPage(currentModalPage);
+
+        const copyBtn = overlay.querySelector('#modal-copy-btn');
+        if (copyBtn) {
+            copyBtn.onclick = function() {
+                const url = window.location.origin + window.location.pathname + '?id=' + this.getAttribute('data-thread-id');
+                // Try to write to clipboard, but gracefully fall back to selecting the URL
+                // for manual copy if the API is unavailable or permission is denied.
+                navigator.clipboard.writeText(url).then(() => {
+                    copyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
+                    setTimeout(() => { copyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link'; }, 2000);
+                }).catch((err) => {
+                    console.warn('Clipboard write failed, falling back to manual select:', err);
+                    try {
+                        // Create a temporary input to select the URL for manual copying
+                        const tmp = document.createElement('input');
+                        tmp.style.position = 'fixed'; tmp.style.left = '-9999px';
+                        tmp.value = url;
+                        document.body.appendChild(tmp);
+                        tmp.select();
+                        tmp.setSelectionRange(0, tmp.value.length);
+                        document.execCommand('copy');
+                        document.body.removeChild(tmp);
+                        copyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
+                        setTimeout(() => { copyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link'; }, 2000);
+                    } catch (e) {
+                        // As a last resort, just show the URL in an alert and let the user copy manually
+                        document.body.removeChild(tmp);
+                        window.prompt('Copy this link', url);
+                    }
+                });
+            };
+        }
+
+        const clearUrlParam = () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('id')) {
+                if (window.history.state === null && document.referrer === '') {
+                    window.location.href = window.location.origin + window.location.pathname;
+                } else {
+                    window.history.back();
+                }
+            } else {
+                overlay.remove();
+            }
+        };
+
+        overlay.querySelector('#close-modal-btn').onclick = clearUrlParam;
+        overlay.addEventListener('click', e => { if (e.target === overlay) clearUrlParam(); });
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // POPSTATE
+    // ════════════════════════════════════════════════════════════════════════
+    window.addEventListener('popstate', async function() {
+        const params   = new URLSearchParams(window.location.search);
+        const threadId = params.get('id');
+        document.querySelectorAll('.viewer-overlay').forEach(e => e.remove());
+
+        if (threadId) { await fetchAndRenderThread(threadId); return; }
+
+        const mode = params.get('mode');
+        if (mode === 'fts') {
+            switchMode('fts');
+            const q = params.get('q') || '', author = params.get('uid') || '';
+            if (q)      document.getElementById('ftsInput').value  = q;
+            if (author) document.getElementById('ftsAuthor').value = author;
+            if (q || author) {
+                suppressUrlUpdate = true;
+                triggerFtsSearch();
+                suppressUrlUpdate = false;
+            }
+            return;
+        }
+
+        switchMode('index');
+        const cat   = params.get('cat')   || '';
+        const smode = params.get('smode') || 'title';
+        const query = params.get('q')     || '';
+        const sort  = params.get('sort')  || 'relevance';
+        const order = params.get('order') || 'asc';
+        if (cat) document.getElementById('categoryDropdown').value = cat;
+        const ms2 = document.getElementById('searchTarget');
+        ms2.value = smode; ms2.dispatchEvent(new Event('change'));
+        document.getElementById('searchInput').value  = query;
+        document.getElementById('sortBy').value       = sort;
+        document.getElementById('sortOrder').value    = order;
+        indexLastParams = { q: query, cat, smode, sort, order };
+        suppressUrlUpdate = true;
+        runIndexQuery(parseInt(params.get('offset') || '0', 10), true);
+        suppressUrlUpdate = false;
+    });
+    </script>
+</body>
+</html>

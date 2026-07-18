@@ -1,0 +1,324 @@
+{
+  "2013": {
+    "_files": [
+      "49wGw.png",
+      "bgoption.jpg",
+      "cinfo.jpg",
+      "favicon.png",
+      "lcfa.png",
+      "left.jpg",
+      "logobg.jpg",
+      "middle.jpg",
+      "nav.png",
+      "right.jpg",
+      "rows.jpg",
+      "submenu.jpg",
+      "topbar.jpg",
+      "toprow.jpg"
+    ]
+  },
+  "_files": [
+    "404.png",
+    "Favicon.webp",
+    "OneMillion.png",
+    "Respected.png",
+    "VM_Logo.png",
+    "VM_discord.png",
+    "VM_graphicsshowcase.png",
+    "collapse.png",
+    "collapse_collapsed.png",
+    "folders_sprite.png",
+    "logo-2013.png",
+    "logo-christmas-2014.png",
+    "logo-christmas-2015.png",
+    "logo-christmas.png",
+    "logo-old.png",
+    "logo-pride.webp",
+    "logo-ukraine.png",
+    "logo.png",
+    "newlogo.png",
+    "oldfavicon.jpg",
+    "sassyaward.png",
+    "snowsnow.png",
+    "spinner.gif",
+    "star.png",
+    "tcat.png",
+    "usernameapproval.png"
+  ],
+  "UserBars": {
+    "_files": [
+      "Administrator.png",
+      "Developer.png",
+      "Elite.png",
+      "Moderator.png",
+      "Owner.png",
+      "VIP.png"
+    ],
+    "Custom": {
+      "_files": [
+        "Alvaria.png",
+        "FaZe.png",
+        "Rain.png",
+        "Renzi.png",
+        "V3rmillionMissionary.png",
+        "V3rmillionMissionary_Alt1.png",
+        "V3rmillionMissionary_Alt2.png",
+        "V3rmillionMissionary_Dec.png",
+        "V3rmillionMissionary_Easter.png",
+        "V3rmillionMissionary_Oct.png",
+        "V3rmillionMissionary_Summer.png",
+        "celeryug.png",
+        "nihonug.png"
+      ]
+    },
+    "Redesigned": {
+      "_files": [
+        "Administrator.png",
+        "Advisor.png",
+        "Developer.png",
+        "Elite.png",
+        "Esoterica.png",
+        "Head_Mod.png",
+        "Moderator.png",
+        "Owner.png",
+        "Scriptware.png",
+        "Synapse.png",
+        "VIP.png"
+      ]
+    }
+  },
+  "awards": {
+    "_files": [
+      "1x1music.png",
+      "2fa.png",
+      "5year.png",
+      "BronzeDonor.png",
+      "CaesoCompWinner.png",
+      "CarlosFamily.png",
+      "ChatboxManiac.png",
+      "Christmas2016.png",
+      "Christmas2017.png",
+      "Christmas2018.png",
+      "Christmas2019.png",
+      "Christmas2020.png",
+      "Christmas2022.png",
+      "Deputy.png",
+      "Elite.png",
+      "EsoCommunity.png",
+      "EsoMember.png",
+      "ExStaff.png",
+      "FiresAward.png",
+      "GoldDonor.png",
+      "GrammarKing.png",
+      "GraphicsGuru.png",
+      "HardwareBadge.png",
+      "LiteratureBadge.png",
+      "OneMillion.png",
+      "OneMillionThreads.png",
+      "PrideCharity.png",
+      "Raccoon.png",
+      "SebyCompWinner.png",
+      "Segfault.png",
+      "SilverDonor.png",
+      "Spooktober.png",
+      "Staff.png",
+      "Terminal.png",
+      "TexasToast.png",
+      "V-Star.png",
+      "VGameBadge.png",
+      "beta.png",
+      "bucked7.png",
+      "clover.png",
+      "criss_ting.png",
+      "dove.png",
+      "gifter.png",
+      "handyjob.png",
+      "like_a_boss.png",
+      "like_a_mod.png",
+      "oldverm.png",
+      "respected2.png",
+      "scavenger.png",
+      "thankyoucard.png",
+      "the_right.png",
+      "vmaward.png",
+      "watchasstupidicon.png"
+    ]
+  },
+  "flags": {
+    "_files": [
+      "flags.css"
+    ]
+  },
+  "hhub": {
+    "_files": [
+      "buddy_away.gif",
+      "buddy_offline.gif",
+      "buddy_online.gif",
+      "dismiss_notice.gif",
+      "dot_folder.gif",
+      "error.gif",
+      "folder.gif",
+      "hotfolder.gif",
+      "hotlockfolder.gif",
+      "invalid.gif",
+      "jump.gif",
+      "list.png",
+      "lockfolder.gif",
+      "logo.png",
+      "newfolder.gif",
+      "newhotfolder.gif",
+      "newhotlockfolder.gif",
+      "newlockfolder.gif",
+      "off.gif",
+      "on.gif",
+      "patt.png",
+      "pixel.gif",
+      "spinner.gif",
+      "star.gif",
+      "star_rating.png",
+      "valid.gif"
+    ],
+    "toplinks": {
+      "_files": [
+        "forums.png",
+        "help.png",
+        "memberlist.png",
+        "search.png",
+        "trophy.png",
+        "upgradenow.png"
+      ]
+    }
+  },
+  "icons": {
+    "_files": [
+      "star.png"
+    ]
+  },
+  "majestic": {
+    "_files": [
+      "bg.png",
+      "off.png",
+      "offlock.png",
+      "on.png",
+      "redirect.png",
+      "star_rating.png",
+      "tfoot.png",
+      "thead.png"
+    ]
+  },
+  "mobile": {
+    "_files": [
+      "gradient.png",
+      "home.gif",
+      "posted_0.gif",
+      "top.gif"
+    ]
+  },
+  "modcp": {
+    "_files": [
+      "awards.png"
+    ]
+  },
+  "seasonal": {
+    "christmas": {
+      "_files": [
+        "logo_2.png"
+      ]
+    },
+    "halloween": {
+      "_files": [
+        "Vermillion_header.png",
+        "halloween-logo.png"
+      ]
+    }
+  },
+  "smilies": {
+    "_files": [
+      "angel.png",
+      "angry.png",
+      "arrow.png",
+      "biggrin.png",
+      "blush.png",
+      "confused.png",
+      "cool.png",
+      "cry.png",
+      "dab.png",
+      "dodgy.png",
+      "drugs.png",
+      "drunk.png",
+      "exclamation.png",
+      "fury.png",
+      "heart.png",
+      "huh.png",
+      "idea.png",
+      "raysA.png",
+      "raysDisappoint.png",
+      "raysFab.png",
+      "raysHapp.png",
+      "raysHehe.png",
+      "raysHello.png",
+      "raysHmM.png",
+      "raysHmf.png",
+      "raysKawaii.png",
+      "raysLaugh.png",
+      "raysLick.png",
+      "raysLove.png",
+      "raysLurk.png",
+      "raysOkpal.png",
+      "raysPanic.png",
+      "raysParty.png",
+      "raysPog.png",
+      "raysPure.png",
+      "raysQuizzical.png",
+      "raysSad.png",
+      "raysShock.png",
+      "raysShrug.png",
+      "raysShy.png",
+      "raysSun.png",
+      "raysTable.gif",
+      "raysUpset.png",
+      "raysYes.png",
+      "raysZzz.png",
+      "rolleyes.png",
+      "sad.png",
+      "shy.png",
+      "sleepy.png",
+      "smile.png",
+      "thinking.png",
+      "thomas.png",
+      "tongue.png",
+      "undecided.png",
+      "watching.png",
+      "wink.png"
+    ]
+  },
+  "thankyoulike": {
+    "_files": [
+      "tyl_add.png",
+      "tyl_del.png"
+    ]
+  },
+  "usercp": {
+    "_files": [
+      "bell.png",
+      "bin.png",
+      "delete.png",
+      "transmit_blue.png"
+    ]
+  },
+  "vermillion": {
+    "_files": [
+      "arrow_down.png",
+      "body_bg.png",
+      "buddy_offline.png",
+      "buddy_online.png",
+      "collapse.png",
+      "folders_sprite.png",
+      "jump.png",
+      "logo.png",
+      "nav_bit.png",
+      "spinner.gif",
+      "star.png"
+    ]
+  }
+}

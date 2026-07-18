@@ -1,0 +1,48 @@
+{$lang->error_nopermission_guest_1}
+<ol>
+<li>{$lang->error_nopermission_guest_2} </li>
+<li>{$lang->error_nopermission_guest_3}</li>
+<li>{$lang->error_nopermission_guest_4}</li>
+<li>{$lang->error_nopermission_guest_5}</li>
+</ol>
+<form action="member.php" method="post">
+<table border="0" cellspacing="{$theme['borderwidth']}" cellpadding="{$theme['tablespace']}" class="tborder">
+<tr>
+<td class="thead" colspan="2"><strong>{$lang->login}</strong></td>
+</tr>
+<tr>
+<td class="trow1"><strong>{$lang->username2}</strong></td>
+<td class="trow1"><input type="text" class="textbox" name="username" size="25" style="width: 200px;" value="{$username}" /></td>
+</tr>
+<tr>
+<td class="trow2"><strong>{$lang->password}</strong></td>
+<td class="trow2"><input type="password" class="textbox" name="password" size="25" style="width: 200px;" value="{$password}" /></td>
+</tr>
+<tr>
+<td class="trow2"><strong>2FA Code</strong><br /><span class="smalltext">Leave blank if you don't have 2FA enabled.</span></td>
+<td class="trow2"><input type="text" class="textbox" name="otp" size="25" style="width: 200px;" placeholder="2FA code" /> (<a href="2famisc.php?action=lost2fa">Lost 2FA?</a>)</td>
+</tr>
+
+<tr>
+<td class="trow1" colspan="2" align="center"><label title="{$lang->remember_me_desc}"><input type="checkbox" class="checkbox" name="remember" checked="checked" value="yes" /> {$lang->remember_me}</label></td>
+</tr>
+	
+<tr>
+<td class="trow2" colspan="2">
+<span class="smalltext float_left" style="padding-top: 3px;"><input type="submit" class="button" name="submit" style="font-weight:bold;" value="{$lang->login}" /></span>
+<input type="hidden" name="action" value="do_login" />
+<input type="hidden" name="url" value="{$redirect_url}" />
+<input name="my_post_key" type="hidden" value="{$mybb->post_code}" />
+<span class="smalltext float_right" style="padding-top: 3px;">
+<a class="button" href="member.php?action=register">Need to register?</a> | <a href="member.php?action=lostpw">Forgotten your password?</a>
+</td>
+</tr>
+	
+{$captcha}
+</table>
+</form>
+<a href="https://discord.gg/v3rmillion-rip-1258530737422864445">
+<div style="background-color:#DA2C2C;border-radius:5px;color:white;padding:10px;">Welcome to Vermillion! 
+<strong style="color:black">If you had an account with us before December 2023 and have not yet reclaimed your account, you'll need to do that by clicking here.</strong> 
+If you're completely new to our community, welcome! For all inquiries and issues, please feel free to contact us and we'll get back to you as soon as we can. You can also check out some of the links below for more information. </div>
+</a>

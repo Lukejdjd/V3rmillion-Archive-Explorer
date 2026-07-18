@@ -1,0 +1,99 @@
+<html>
+  <head>
+	  <title>{$thread['subject']}</title>
+	  {$headerinclude}
+	  <script type="text/javascript">
+      	var quickdelete_confirm = "{$lang->quickdelete_confirm}";
+		var quickrestore_confirm = "{$lang->quickrestore_confirm}";
+		var allowEditReason = "{$mybb->settings['alloweditreason']}";
+		var thread_deleted = "{$thread_deleted}";
+		var visible_replies = "{$thread['replies']}";
+		lang.save_changes = "{$lang->save_changes}";
+		lang.cancel_edit = "{$lang->cancel_edit}";
+		lang.quick_edit_update_error = "{$lang->quick_edit_update_error}";
+		lang.quick_reply_post_error = "{$lang->quick_reply_post_error}";
+		lang.quick_delete_error = "{$lang->quick_delete_error}";
+		lang.quick_delete_success = "{$lang->quick_delete_success}";
+		lang.quick_delete_thread_success = "{$lang->quick_delete_thread_success}";
+		lang.quick_restore_error = "{$lang->quick_restore_error}";
+		lang.quick_restore_success = "{$lang->quick_restore_success}";
+		lang.editreason = "{$lang->postbit_editreason}";
+		lang.post_deleted_error = "{$lang->post_deleted_error}";
+		lang.softdelete_thread = "{$lang->soft_delete_thread}";
+		lang.restore_thread = "{$lang->restore_thread}";
+    </script>
+    <!-- jeditable (jquery) -->
+    <script type="text/javascript" src="{$mybb->asset_url}/jscripts/report.js?ver=1820"></script>
+    <script src="{$mybb->asset_url}/jscripts/jeditable/jeditable.min.js"></script>
+    <script type="text/javascript" src="{$mybb->asset_url}/jscripts/thread.js?ver=1822"></script>
+  </head>
+  <body> {$header} {$threadnotesbox} {$pollbox} <style>
+      .thread_head {
+        background: #1a1a1a;
+        width: 100%;
+        border-bottom: 5px solid #cd1818;
+      }
+
+      .thread_title {
+        color: #fff;
+        font-size: 24px;
+        font-weight: 900;
+      }
+
+      .thread_sub {
+        display: none;
+        background: #303030;
+        padding: 10px;
+      }
+    </style> {$ratethread} <table border="0" cellspacing="{$theme['borderwidth']}" cellpadding="{$theme['tablespace']}" class="thread_head">
+      <tr>
+        <td>
+          <div class="thread_title"> {$thread['displayprefix']}{$thread['subject']} </div>
+        <td class="align_right">
+          {$bumpthread} {$newreply}&nbsp; <br> {$multipage}
+        </td>
+        </td>
+      </tr>
+    </table>
+    <table border="0" cellspacing="{$theme['borderwidth']}" cellpadding="{$theme['tablespace']}" class="tborder tfixed clear">
+      <tr>
+        <td id="posts_container">
+          <div id="posts"> {$posts} </div>
+        </td>
+      </tr>
+      <tr>
+        <td class="tfoot"> {$search_thread} <div>
+            <strong>&laquo; <a href="{$next_oldest_link}">{$lang->next_oldest}</a> | <a href="{$next_newest_link}">{$lang->next_newest}</a> &raquo; </strong>
+          </div>
+        </td>
+      </tr>
+    </table>
+    <div class="float_left"> {$multipage} </div>
+    <div style="padding-top: 4px;" class="float_right"> {$newreply} </div>
+    <br class="clear" /> {$quickreply} {$threadexbox} {$similarthreads} <br />
+    <div class="float_right" style="text-align: right;"> {$moderationoptions} {$forumjump} </div>
+    <br class="clear" /> {$usersbrowsing} {$footer} <div id="thread_modes_popup" class="popup_menu" style="display: none;">
+      <div class="popup_item_container">
+        <a href="showthread.php?mode=linear&amp;tid={$tid}&amp;pid={$pid}#pid{$pid}" class="popup_item">{$lang->linear}</a>
+      </div>
+      <div class="popup_item_container">
+        <a href="showthread.php?mode=threaded&amp;tid={$tid}&amp;pid={$pid}#pid{$pid}" class="popup_item">{$lang->threaded}</a>
+      </div>
+    </div>
+    <script type="text/javascript">
+      // 
+      <!--
+      if (use_xmlhttprequest == "1") {
+        $("#thread_modes").popupMenu();
+      }
+      // -->
+    </script>
+    <script type="text/javascript">
+      var thread_deleted = "{$thread_deleted}";
+      if (thread_deleted == "1") {
+        $("#quick_reply_form, .new_reply_button, .thread_tools, .inline_rating").hide();
+        $("#moderator_options_selector option.option_mirage").attr("disabled", "disabled");
+      }
+    </script>
+  </body>
+</html>

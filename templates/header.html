@@ -1,0 +1,51 @@
+<link rel="Shortcut icon" href="{$theme['imgdir']}/Favicon.webp" />
+<a name="top" id="top"></a>
+      <div id="header">
+         <div class="wrap">
+            <div id="logo">
+               <a href="index.php"><img src="{$theme['logo']}" alt="V3rmillion" title="V3rmillion" /></a>
+            </div>
+         </div>
+      </div>
+      <div id="bridge">
+         <div class="wrap">         
+			 <div id="panel">
+			   {$welcomeblock}			 
+            </div>     
+			 <ul class="menu top_links">
+               <li>
+                  <a href="index.php" class="forum"><span><i class="fa fa-home"></i>&nbsp; Home</span></a>
+                  <ul class="ddm">
+                     <li><a href="search.php?action=getnew"><i class="fa fa-refresh"></i>&nbsp; View New Posts</a></li>
+                     <li><a href="search.php?action=getdaily"><i class="fa fa-clock-o"></i>&nbsp; View Today's Posts</a></li>
+                  </ul>
+               </li>
+               <li><a href="rules.php" class="rules"><span><i class="fa fa-info"></i>&nbsp; Rules</span></a></li>
+               <li><a href="memberlist.php" class="memberlist"><span><i class="fa fa-users"></i>&nbsp; Member List</a></span></li>
+               <li><a href="search.php" class="search"><span><i class="fa fa-search"></i>&nbsp; Search</a></span></li>
+               <li><a href="autoupgrade.php" class="upgrade"><span><i class="fa fa-exclamation"></i>&nbsp; Upgrade</span></a></li>
+               <li><a href="https://v3rm.rip/discord" class="chatbox"><span><i class="fa fa-comment"></i>&nbsp; Discord</span></a></li>
+               <li>
+                  <a href="#"><span><i class="fa fa-question-circle"></i>&nbsp; Misc</span></a>
+                  <ul class="ddm">
+                     <li><a href="awards.php"><span><i class="fa fa-trophy"></i>&nbsp; Awards</span></a></li>
+                     <li><a href="misc.php?action=help" class="help"><span><i class="fa fa-info-circle"></i>&nbsp; Help</span></a></li>
+                  </ul>
+               </li>
+            </ul>	 
+			 <!-- </div> in header_welcomeblock_member and header_welcomeblock_guest -->
+				<!-- </div> in header_welcomeblock_member and header_welcomeblock_guest -->
+         </div>
+      </div>
+	<style>
+.sceditor-container,.sceditor-container div,div.sceditor-dropdown,div.sceditor-dropdown div {
+    z-index: 1 !important;
+}
+.signature{
+	height:auto;
+	max-height:300px;
+}
+</style>
+<div id="wrapper">
+	<div id="container">
+			<navigation>{$pm_warning}{myadvertisements[zone_1]}
