@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 import sqlite3
 import time
+import zipfile
 
 from benchmark_thread_parser import CORPUS
 import thread_parser
@@ -49,7 +50,7 @@ def main() -> int:
     parser.add_argument("--offset", type=int, default=0)
     parser.add_argument(
         "--pipeline",
-        choices=("legacy", "batched"),
+        choices=("legacy", "batched", "zip-serial"),
         default="legacy",
     )
     args = parser.parse_args()
@@ -104,7 +105,7 @@ def main() -> int:
                 else:
                     counts["failed"] += 1
                     errors.append(str(result))
-    else:
+    elif args.pipeline == "batched":
         thread_parser.DB_PATH = str(args.database)
         write_conn = thread_parser.init_db(create_fts=False)
         write_conn.execute("DROP TABLE IF EXISTS fts_posts")
@@ -149,6 +150,71 @@ def main() -> int:
 
         flush_pending()
         write_conn.close()
+    else:
+        thread_parser.DB_PATH = str(args.database)
+        write_conn = thread_parser.init_db(create_fts=False)
+        write_cur = write_conn.cursor()
+        pending_threads = []
+        pending_posts = []
+
+        archive = zipfile.ZipFile(ROOT_DIR / "data" / "threads.zip")
+        wanted = set(thread_ids)
+        entries = {thread_id: [] for thread_id in thread_ids}
+        for info in archive.infolist():
+            if info.is_dir():
+                continue
+            parts = info.filename.split("/")
+            if (
+                len(parts) >= 3
+                and parts[0] == "threads"
+                and parts[1] in wanted
+            ):
+                entries[parts[1]].append(info)
+
+        for thread_id in thread_ids:
+            pages = {}
+            metadata = None
+            for info in entries[thread_id]:
+                name = info.filename.rsplit("/", 1)[-1]
+                content = archive.read(info).decode("utf-8")
+                if name.endswith(".html"):
+                    pages[name] = content
+                elif name == "thread.json":
+                    metadata = content
+
+            try:
+                thread_row, post_rows = (
+                    thread_parser.build_thread_rows_from_pages(
+                        thread_id,
+                        pages,
+                        metadata,
+                    )
+                )
+                pending_threads.append(thread_row)
+                pending_posts.extend(post_rows)
+                counts["done"] += 1
+
+                if len(pending_threads) >= 500:
+                    thread_parser.write_thread_batch(
+                        write_cur,
+                        pending_threads,
+                        pending_posts,
+                    )
+                    write_conn.commit()
+                    pending_threads.clear()
+                    pending_posts.clear()
+            except Exception as exc:
+                counts["failed"] += 1
+                errors.append(f"Error {thread_id}: {exc}")
+
+        thread_parser.write_thread_batch(
+            write_cur,
+            pending_threads,
+            pending_posts,
+        )
+        write_conn.commit()
+        write_conn.close()
+        archive.close()
 
     elapsed = time.perf_counter() - started
     conn = sqlite3.connect(f"file:{args.database}?mode=ro", uri=True)

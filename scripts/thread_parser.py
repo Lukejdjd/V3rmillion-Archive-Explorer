@@ -10,6 +10,7 @@ import json
 import copy
 import threading
 import sys
+import zipfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from selectolax.parser import HTMLParser, Node
 from bs4 import BeautifulSoup
@@ -17,6 +18,7 @@ from typing import TypedDict, List, Dict, Tuple, Optional, Any
 from tqdm import tqdm
 from datetime import datetime
 import sqlite3
+from collections.abc import Callable
 
 from v3rm_assets import (
     normalize_image_path,
@@ -30,8 +32,10 @@ sys.stdout.reconfigure(line_buffering=True)
 ROOT_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_DIR    = os.path.join(ROOT_DIR, "data")
 THREADS_DIR = os.path.join(DATA_DIR, "threads")
+THREADS_ZIP = os.path.join(DATA_DIR, "threads.zip")
 INDEX_DIR   = os.path.join(DATA_DIR, "index")
 DB_PATH     = os.path.join(DATA_DIR, "threads.db")
+DEFAULT_FOLDER_WORKERS = min(24, os.cpu_count() or 8)
 
 # --- Regex ---
 LIKE_BUTTONS_RE = re.compile(r'^like_buttons\d+$')
@@ -459,20 +463,12 @@ def get_post_information(
     )
 
 
-def thread_parser(folder_path: str, debug: bool = False) -> Thread:
-    if not os.path.exists(folder_path):
-        raise FileNotFoundError(
-            f"Target folder path context missing: {folder_path}"
-        )
-
-    pages = sorted(
-        [
-            f for f in os.listdir(folder_path)
-            if f.endswith('.html')
-        ],
-        key=sortpages
-    )
-
+def _thread_parser(
+    folder_path: str,
+    pages: List[str],
+    read_page: Callable[[str], str],
+    debug: bool = False,
+) -> Thread:
     thread_tree: Thread = {
         'thread_path': folder_path,
         'categories': [],
@@ -481,31 +477,29 @@ def thread_parser(folder_path: str, debug: bool = False) -> Thread:
         'replies_to_not_found_posts': []
     }
 
+    first_page_content = None
     if pages:
-        first_page_path = os.path.join(folder_path, pages[0])
+        first_page_content = read_page(pages[0])
+        lines = first_page_content.splitlines(keepends=True)
 
-        with open(first_page_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
+        for idx in [311, 315]:
+            if idx < len(lines):
+                match = re.search(r'>(.*?)</a>', lines[idx])
 
-            for idx in [311, 315]:
-                if idx < len(lines):
-                    match = re.search(r'>(.*?)</a>', lines[idx])
-
-                    if match:
-                        thread_tree['categories'].append(
-                            match.group(1).strip()
-                        )
+                if match:
+                    thread_tree['categories'].append(
+                        match.group(1).strip()
+                    )
 
     posts_pos: Dict[Tuple[str, str], dict] = {}
     got_thread_content_info = False
 
-    for page in pages:
-        with open(
-            os.path.join(folder_path, page),
-            'r',
-            encoding='utf-8'
-        ) as f:
-            content = f.read()
+    for page_index, page in enumerate(pages):
+        content = (
+            first_page_content
+            if page_index == 0 and first_page_content is not None
+            else read_page(page)
+        )
 
         tree = HTMLParser(content)
 
@@ -599,6 +593,45 @@ def thread_parser(folder_path: str, debug: bool = False) -> Thread:
     return thread_tree
 
 
+def thread_parser(folder_path: str, debug: bool = False) -> Thread:
+    if not os.path.exists(folder_path):
+        raise FileNotFoundError(
+            f"Target folder path context missing: {folder_path}"
+        )
+
+    pages = sorted(
+        [
+            f for f in os.listdir(folder_path)
+            if f.endswith('.html')
+        ],
+        key=sortpages
+    )
+
+    def read_page(page: str) -> str:
+        with open(
+            os.path.join(folder_path, page),
+            'r',
+            encoding='utf-8'
+        ) as f:
+            return f.read()
+
+    return _thread_parser(folder_path, pages, read_page, debug)
+
+
+def thread_parser_from_pages(
+    folder_path: str,
+    page_contents: Dict[str, str],
+    debug: bool = False,
+) -> Thread:
+    pages = sorted(page_contents, key=sortpages)
+    return _thread_parser(
+        folder_path,
+        pages,
+        page_contents.__getitem__,
+        debug,
+    )
+
+
 def load_thread_json_meta(
     html_folder: str
 ) -> Tuple[
@@ -613,17 +646,122 @@ def load_thread_json_meta(
             encoding="utf-8"
         ) as f:
             meta = json.load(f)
-
-        author_info = meta.get("author") or {}
-
-        return (
-            (meta.get("title") or "").strip() or None,
-            author_info.get("username") or None,
-            author_info.get("id") or None,
-        )
+        return parse_thread_json_meta(meta)
 
     except Exception:
         return None, None, None
+
+
+def parse_thread_json_meta(meta: dict) -> Tuple[
+    Optional[str],
+    Optional[str],
+    Optional[str]
+]:
+    author_info = meta.get("author") or {}
+
+    return (
+        (meta.get("title") or "").strip() or None,
+        author_info.get("username") or None,
+        author_info.get("id") or None,
+    )
+
+
+def create_external_fts(conn):
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS fts_posts USING fts5("
+        "post_description, author_username, author_id, thread_id, post_id, "
+        "content='posts', content_rowid='rowid', columnsize=0)"
+    )
+    conn.execute(
+        "CREATE VIRTUAL TABLE IF NOT EXISTS fts_threads USING fts5("
+        "title, author_username, author_id, categories, thread_id, "
+        "content='threads', content_rowid='rowid', columnsize=0)"
+    )
+
+
+def drop_fts_triggers(conn):
+    for name in (
+        "posts_fts_ai", "posts_fts_ad", "posts_fts_au",
+        "threads_fts_ai", "threads_fts_ad", "threads_fts_au",
+    ):
+        conn.execute(f"DROP TRIGGER IF EXISTS {name}")
+
+
+def create_fts_triggers(conn):
+    drop_fts_triggers(conn)
+    conn.executescript("""
+        CREATE TRIGGER posts_fts_ai AFTER INSERT ON posts BEGIN
+            INSERT INTO fts_posts(
+                rowid, post_description, author_username,
+                author_id, thread_id, post_id
+            ) VALUES (
+                new.rowid, new.post_description, new.author_username,
+                new.author_id, new.thread_id, new.post_id
+            );
+        END;
+
+        CREATE TRIGGER posts_fts_ad AFTER DELETE ON posts BEGIN
+            INSERT INTO fts_posts(
+                fts_posts, rowid, post_description, author_username,
+                author_id, thread_id, post_id
+            ) VALUES (
+                'delete', old.rowid, old.post_description, old.author_username,
+                old.author_id, old.thread_id, old.post_id
+            );
+        END;
+
+        CREATE TRIGGER posts_fts_au AFTER UPDATE ON posts BEGIN
+            INSERT INTO fts_posts(
+                fts_posts, rowid, post_description, author_username,
+                author_id, thread_id, post_id
+            ) VALUES (
+                'delete', old.rowid, old.post_description, old.author_username,
+                old.author_id, old.thread_id, old.post_id
+            );
+            INSERT INTO fts_posts(
+                rowid, post_description, author_username,
+                author_id, thread_id, post_id
+            ) VALUES (
+                new.rowid, new.post_description, new.author_username,
+                new.author_id, new.thread_id, new.post_id
+            );
+        END;
+
+        CREATE TRIGGER threads_fts_ai AFTER INSERT ON threads BEGIN
+            INSERT INTO fts_threads(
+                rowid, title, author_username, author_id, categories, thread_id
+            ) VALUES (
+                new.rowid, new.title, new.author_username,
+                new.author_id, new.categories, new.thread_id
+            );
+        END;
+
+        CREATE TRIGGER threads_fts_ad AFTER DELETE ON threads BEGIN
+            INSERT INTO fts_threads(
+                fts_threads, rowid, title, author_username,
+                author_id, categories, thread_id
+            ) VALUES (
+                'delete', old.rowid, old.title, old.author_username,
+                old.author_id, old.categories, old.thread_id
+            );
+        END;
+
+        CREATE TRIGGER threads_fts_au AFTER UPDATE ON threads BEGIN
+            INSERT INTO fts_threads(
+                fts_threads, rowid, title, author_username,
+                author_id, categories, thread_id
+            ) VALUES (
+                'delete', old.rowid, old.title, old.author_username,
+                old.author_id, old.categories, old.thread_id
+            );
+            INSERT INTO fts_threads(
+                rowid, title, author_username, author_id, categories, thread_id
+            ) VALUES (
+                new.rowid, new.title, new.author_username,
+                new.author_id, new.categories, new.thread_id
+            );
+        END;
+    """)
 
 
 def init_db(create_fts: bool = True):
@@ -673,30 +811,12 @@ def init_db(create_fts: bool = True):
 
     if create_fts:
         try:
-            conn.execute(
-                "CREATE VIRTUAL TABLE IF NOT EXISTS "
-                "fts_posts USING fts5("
-                "post_description, "
-                "author_username, "
-                "author_id, "
-                "thread_id, "
-                "post_id)"
-            )
-
-        except sqlite3.OperationalError:
-            pass
-
-        try:
-            conn.execute(
-                "CREATE VIRTUAL TABLE IF NOT EXISTS "
-                "fts_threads USING fts5("
-                "title, "
-                "author_username, "
-                "author_id, "
-                "categories, "
-                "thread_id)"
-            )
-
+            create_external_fts(conn)
+            fts_sql = conn.execute(
+                "SELECT sql FROM sqlite_master WHERE name='fts_posts'"
+            ).fetchone()
+            if fts_sql and "content='posts'" in fts_sql[0]:
+                create_fts_triggers(conn)
         except sqlite3.OperationalError:
             pass
 
@@ -704,7 +824,7 @@ def init_db(create_fts: bool = True):
 
 
 THREAD_INSERT_SQL = """
-    INSERT OR REPLACE INTO threads (
+    INSERT INTO threads (
         thread_id,
         title,
         author_username,
@@ -714,11 +834,18 @@ THREAD_INSERT_SQL = """
         reply_count
     )
     VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(thread_id) DO UPDATE SET
+        title=excluded.title,
+        author_username=excluded.author_username,
+        author_id=excluded.author_id,
+        categories=excluded.categories,
+        date=excluded.date,
+        reply_count=excluded.reply_count
 """
 
 
 POST_INSERT_SQL = """
-    INSERT OR REPLACE INTO posts (
+    INSERT INTO posts (
         post_id,
         thread_id,
         post_number,
@@ -740,6 +867,25 @@ POST_INSERT_SQL = """
         is_op
     )
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(post_id) DO UPDATE SET
+        thread_id=excluded.thread_id,
+        post_number=excluded.post_number,
+        unix_time=excluded.unix_time,
+        post_date=excluded.post_date,
+        last_edit=excluded.last_edit,
+        likes=excluded.likes,
+        dislikes=excluded.dislikes,
+        author_username=excluded.author_username,
+        author_id=excluded.author_id,
+        user_title=excluded.user_title,
+        user_rank=excluded.user_rank,
+        user_group=excluded.user_group,
+        user_stars=excluded.user_stars,
+        reputation=excluded.reputation,
+        replied_to=excluded.replied_to,
+        replied_to_post_date=excluded.replied_to_post_date,
+        post_description=excluded.post_description,
+        is_op=excluded.is_op
 """
 
 
@@ -752,14 +898,13 @@ def collect_posts(pinfo, is_op=False):
     return out
 
 
-def build_thread_rows(thread_id: str):
-    html_folder = os.path.join(THREADS_DIR, thread_id)
-    data = thread_parser(html_folder)
-
+def _build_thread_rows(
+    thread_id: str,
+    data: Thread,
+    thread_meta: Tuple[Optional[str], Optional[str], Optional[str]],
+):
     categories = data.get("categories", []) or ["Uncategorized"]
-    meta_title, meta_username, meta_author_id = load_thread_json_meta(
-        html_folder
-    )
+    meta_title, meta_username, meta_author_id = thread_meta
     thread_content = data.get("thread_content") or {}
 
     clean_title = (
@@ -823,6 +968,35 @@ def build_thread_rows(thread_id: str):
     return thread_row, post_rows
 
 
+def build_thread_rows(thread_id: str):
+    html_folder = os.path.join(THREADS_DIR, thread_id)
+    return _build_thread_rows(
+        thread_id,
+        thread_parser(html_folder),
+        load_thread_json_meta(html_folder),
+    )
+
+
+def build_thread_rows_from_pages(
+    thread_id: str,
+    page_contents: Dict[str, str],
+    metadata_content: str | None,
+):
+    folder_path = os.path.join(THREADS_DIR, thread_id)
+    try:
+        thread_meta = parse_thread_json_meta(
+            json.loads(metadata_content) if metadata_content else {}
+        )
+    except Exception:
+        thread_meta = (None, None, None)
+
+    return _build_thread_rows(
+        thread_id,
+        thread_parser_from_pages(folder_path, page_contents),
+        thread_meta,
+    )
+
+
 def parse_thread_worker(thread_id: str):
     try:
         return "success", build_thread_rows(thread_id)
@@ -858,16 +1032,16 @@ def run_migration_on_file(
         thread_row, post_rows = build_thread_rows(thread_id)
         write_thread_batch(cur, [thread_row], post_rows)
 
-        fts_exists = conn.execute(
+        fts_schema = conn.execute(
             """
-            SELECT name
+            SELECT sql
             FROM sqlite_master
             WHERE type='table'
             AND name='fts_posts'
             """
         ).fetchone()
 
-        if fts_exists:
+        if fts_schema and "content='posts'" not in fts_schema[0]:
             update_fts_for_thread(conn, thread_id)
 
         conn.commit()
@@ -936,23 +1110,81 @@ def update_fts_for_thread(
     )
 
 
+def load_thread_archive_index():
+    archive = zipfile.ZipFile(THREADS_ZIP)
+    entries = {}
+
+    for info in archive.infolist():
+        parts = info.filename.split("/")
+        if len(parts) < 2 or parts[0] != "threads" or not parts[1]:
+            continue
+
+        thread_id = parts[1]
+        thread_entries = entries.setdefault(thread_id, [])
+        if not info.is_dir() and (
+            info.filename.endswith(".html")
+            or info.filename.endswith("/thread.json")
+        ):
+            thread_entries.append(info)
+
+    return archive, entries
+
+
+def build_thread_rows_from_archive(archive, thread_id, entries):
+    pages = {}
+    metadata = None
+
+    for info in entries:
+        name = info.filename.rsplit("/", 1)[-1]
+        content = archive.read(info).decode("utf-8")
+
+        if name.endswith(".html"):
+            pages[name] = content
+        elif name == "thread.json":
+            metadata = content
+
+    return build_thread_rows_from_pages(
+        thread_id,
+        pages,
+        metadata,
+    )
+
+
 def run_concurrent_migration(
     overwrite: bool = False,
-    workers: int = 8
+    workers: int = DEFAULT_FOLDER_WORKERS,
+    source: str = "auto",
 ):
     os.makedirs(INDEX_DIR, exist_ok=True)
 
-    all_thread_ids = [
-        e.name for e in os.scandir(THREADS_DIR)
-        if e.is_dir()
-    ]
+    if source == "auto":
+        source = "zip" if os.path.isfile(THREADS_ZIP) else "folders"
+
+    archive = None
+    archive_entries = None
+    if source == "zip":
+        if not os.path.isfile(THREADS_ZIP):
+            raise FileNotFoundError(f"Thread archive not found: {THREADS_ZIP}")
+        print("Loading thread ZIP directory...")
+        archive, archive_entries = load_thread_archive_index()
+        all_thread_ids = list(archive_entries)
+    elif source == "folders":
+        all_thread_ids = [
+            e.name for e in os.scandir(THREADS_DIR)
+            if e.is_dir()
+        ]
+    else:
+        raise ValueError(f"Unknown thread source: {source}")
 
     total = len(all_thread_ids)
 
-    print(
-        f"Found {total:,} threads. "
-        f"Starting with {workers} workers..."
-    )
+    if source == "zip":
+        print(f"Found {total:,} threads in ZIP. Starting sequential parse...")
+    else:
+        print(
+            f"Found {total:,} threads. "
+            f"Starting with {workers} workers..."
+        )
 
     write_conn = init_db(create_fts=False)
     write_conn.execute("PRAGMA synchronous=NORMAL")
@@ -975,10 +1207,13 @@ def run_concurrent_migration(
 
     if not thread_ids:
         write_conn.close()
+        if archive:
+            archive.close()
         print("No threads need processing.")
         return
 
     print("Dropping FTS indexes for bulk insert...")
+    drop_fts_triggers(write_conn)
     write_conn.execute("DROP TABLE IF EXISTS fts_posts")
     write_conn.execute("DROP TABLE IF EXISTS fts_threads")
     write_conn.commit()
@@ -1016,47 +1251,66 @@ def run_concurrent_migration(
         if skipped_count:
             pbar.update(skipped_count)
 
-        with ProcessPoolExecutor(max_workers=workers) as executor:
-            for i in range(0, len(thread_ids), chunk_size):
-                chunk = thread_ids[i:i + chunk_size]
+        def handle_result(status, payload):
+            if status == "success":
+                thread_row, post_rows = payload
+                pending_threads.append(thread_row)
+                pending_posts.extend(post_rows)
+                counts["done"] += 1
 
-                print(
-                    f"\nProcessing chunk "
-                    f"{i//chunk_size + 1} / "
-                    f"{(len(thread_ids) - 1)//chunk_size + 1} "
-                    f"({len(chunk):,} threads)..."
-                )
+                if len(pending_threads) >= write_batch_size:
+                    flush_pending()
+            else:
+                counts["failed"] += 1
+                print(f"\n{payload}")
 
-                futures = {
-                    executor.submit(
-                        parse_thread_worker,
-                        thread_id
-                    ): thread_id
-                    for thread_id in chunk
-                }
+            pbar.update(1)
 
-                for future in as_completed(futures):
-                    status, payload = future.result()
+        if source == "zip":
+            assert archive is not None
+            assert archive_entries is not None
+            for thread_id in thread_ids:
+                try:
+                    payload = build_thread_rows_from_archive(
+                        archive,
+                        thread_id,
+                        archive_entries[thread_id],
+                    )
+                    handle_result("success", payload)
+                except Exception as exc:
+                    handle_result(
+                        "error",
+                        f"Error {thread_id}: {exc}",
+                    )
+        else:
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                for i in range(0, len(thread_ids), chunk_size):
+                    chunk = thread_ids[i:i + chunk_size]
 
-                    if status == "success":
-                        thread_row, post_rows = payload
-                        pending_threads.append(thread_row)
-                        pending_posts.extend(post_rows)
-                        counts["done"] += 1
+                    print(
+                        f"\nProcessing chunk "
+                        f"{i//chunk_size + 1} / "
+                        f"{(len(thread_ids) - 1)//chunk_size + 1} "
+                        f"({len(chunk):,} threads)..."
+                    )
 
-                        if len(pending_threads) >= write_batch_size:
-                            flush_pending()
+                    futures = {
+                        executor.submit(
+                            parse_thread_worker,
+                            thread_id
+                        ): thread_id
+                        for thread_id in chunk
+                    }
 
-                    else:
-                        counts["failed"] += 1
-                        print(f"\n{payload}")
+                    for future in as_completed(futures):
+                        handle_result(*future.result())
 
-                    pbar.update(1)
-
-                flush_pending()
+                    flush_pending()
 
     flush_pending()
     write_conn.close()
+    if archive:
+        archive.close()
 
     print("\n" + "=" * 70)
 
@@ -1073,77 +1327,16 @@ def run_concurrent_migration(
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA synchronous=NORMAL")
 
-    conn.execute(
-        """
-        CREATE VIRTUAL TABLE IF NOT EXISTS fts_posts
-        USING fts5(
-            post_description,
-            author_username,
-            author_id,
-            thread_id,
-            post_id
-        )
-        """
-    )
+    create_external_fts(conn)
 
     print("  Populating fts_posts...")
-
-    conn.execute("DELETE FROM fts_posts")
-
-    conn.execute(
-        """
-        INSERT INTO fts_posts(
-            post_description,
-            author_username,
-            author_id,
-            thread_id,
-            post_id
-        )
-        SELECT
-            post_description,
-            author_username,
-            author_id,
-            thread_id,
-            post_id
-        FROM posts
-        """
-    )
-
-    conn.execute(
-        """
-        CREATE VIRTUAL TABLE IF NOT EXISTS fts_threads
-        USING fts5(
-            title,
-            author_username,
-            author_id,
-            categories,
-            thread_id
-        )
-        """
-    )
+    conn.execute("INSERT INTO fts_posts(fts_posts) VALUES('rebuild')")
 
     print("  Populating fts_threads...")
-
-    conn.execute("DELETE FROM fts_threads")
-
-    conn.execute(
-        """
-        INSERT INTO fts_threads(
-            title,
-            author_username,
-            author_id,
-            categories,
-            thread_id
-        )
-        SELECT
-            title,
-            author_username,
-            author_id,
-            categories,
-            thread_id
-        FROM threads
-        """
-    )
+    conn.execute("INSERT INTO fts_threads(fts_threads) VALUES('rebuild')")
+    conn.execute("INSERT INTO fts_posts(fts_posts) VALUES('optimize')")
+    conn.execute("INSERT INTO fts_threads(fts_threads) VALUES('optimize')")
+    create_fts_triggers(conn)
 
     conn.commit()
 
@@ -1166,7 +1359,13 @@ if __name__ == "__main__":
 
     parser.add_argument("--thread", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true")
-    parser.add_argument("--workers", type=int, default=8)
+    parser.add_argument("--workers", type=int, default=DEFAULT_FOLDER_WORKERS)
+    parser.add_argument(
+        "--source",
+        choices=("auto", "zip", "folders"),
+        default="auto",
+        help="Bulk input source; auto prefers data/threads.zip",
+    )
 
     args = parser.parse_args()
 
@@ -1183,5 +1382,6 @@ if __name__ == "__main__":
             parser.error("--workers must be at least 1")
         run_concurrent_migration(
             overwrite=args.overwrite,
-            workers=args.workers
+            workers=args.workers,
+            source=args.source,
         )
