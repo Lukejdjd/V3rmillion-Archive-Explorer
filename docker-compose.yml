@@ -8,6 +8,20 @@ services:
       ARCHIVE_DATA_DIR: /app/data
       MANAGE_IFRAMELY: "0"
       IFRAMELY_BACKEND: http://iframely:8061
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      SEARCH_RATE_LIMIT: ${SEARCH_RATE_LIMIT:-10}
+      SEARCH_RATE_WINDOW: ${SEARCH_RATE_WINDOW:-60}
+      READ_RATE_LIMIT: ${READ_RATE_LIMIT:-60}
+      READ_RATE_WINDOW: ${READ_RATE_WINDOW:-60}
+      TURNSTILE_SOFT_LIMIT: ${TURNSTILE_SOFT_LIMIT:-30}
+      BLOCK_HARD_LIMIT: ${BLOCK_HARD_LIMIT:-100}
+      BLOCK_COOLDOWN_SECONDS: ${BLOCK_COOLDOWN_SECONDS:-300}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:-}
+      CACHE_TTL_SEARCH: ${CACHE_TTL_SEARCH:-60}
+      CACHE_TTL_THREAD: ${CACHE_TTL_THREAD:-120}
+      CACHE_TTL_USER: ${CACHE_TTL_USER:-300}
+      LOG_REQUESTS: ${LOG_REQUESTS:-1}
     volumes:
       - ./data:/app/data:ro
     ports:
@@ -16,6 +30,18 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
   iframely:
     build:
@@ -24,3 +50,4 @@ services:
     ports:
       - "127.0.0.1:${IFRAMELY_PORT:-8061}:8061"
     restart: unless-stopped
+    mem_limit: 512m
