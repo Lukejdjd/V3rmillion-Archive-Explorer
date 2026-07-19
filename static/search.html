@@ -1651,9 +1651,42 @@
         const threads = user.thread_count;
         const rep = user.reputation;
         const joined = user.joined || '';
-        const past = Array.isArray(user.past_usernames)
-            ? user.past_usernames.map(x => (x && x.username) || x).filter(Boolean).slice(0, 3)
-            : [];
+        const pastRaw = Array.isArray(user.past_usernames) ? user.past_usernames : [];
+        const allNames = [];
+        
+        // Build chained ranges
+        pastRaw.forEach((x, i) => {
+            const name = (x && x.username) || x;
+            const end = x && x.date_changed ? x.date_changed : null;
+            const start = i === 0 ? (joined || 'unknown') : (pastRaw[i-1].date_changed || '?');
+            allNames.push({ name, start, end });
+        });
+        
+        // Add current username
+        if (pastRaw.length > 0) {
+            const lastEnd = pastRaw[pastRaw.length - 1].date_changed || '?';
+            allNames.push({ name, start: lastEnd, end: 'present' });
+        }
+        
+        const pastUID = `past-${uid}`;
+        const pastHTML = allNames.length ? `
+        <div style="font-size:0.72rem;color:#666;margin-bottom:6px;">
+            <span style="cursor:pointer;user-select:none;" onclick="
+                var el=document.getElementById('${pastUID}');
+                var btn=document.getElementById('${pastUID}-btn');
+                if(el.style.display==='none'){el.style.display='block';btn.textContent='Username History ▴';}
+                else{el.style.display='none';btn.textContent='Username History ▾';}
+            ">
+                <span id="${pastUID}-btn" style="color:#cd1818;font-weight:600;">Username History ▾</span>
+            </span>
+            <div id="${pastUID}" style="display:none;margin-top:6px;border-left:2px solid #2a2a2a;padding-left:8px;">
+                ${allNames.map(u => `
+                    <div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #1a1a1a;">
+                        <span style="color:#aaa;">${escapeHTML(String(u.name))}</span>
+                        <span style="color:#3a3a3a;font-size:0.68rem;white-space:nowrap;">${escapeHTML(String(u.start))} → ${escapeHTML(String(u.end))}</span>
+                    </div>`).join('')}
+            </div>
+        </div>` : `<div style="font-size:0.72rem;color:#666;margin-bottom:6px;">Username History: <span style="color:#444;font-style:italic;">none</span></div>`;
 
         const pills = [];
         if (posts != null && posts !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-comment-o"></i>${Number(posts).toLocaleString()} posts</span>`);
@@ -1669,7 +1702,7 @@
                 </div>
                 <h5 class="card-title mb-1" style="color:#cd1818;">${escapeHTML(name)}</h5>
                 ${title ? `<div class="card-author-line" style="margin-bottom:6px;">${escapeHTML(title)}</div>` : ''}
-                ${past.length ? `<div style="font-size:0.72rem;color:#666;margin-bottom:6px;">also: ${escapeHTML(past.join(', '))}</div>` : ''}
+                ${pastHTML}
                 ${pills.length ? `<div class="card-meta-row">${pills.join('')}</div>` : ''}
                 <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Profile</button>
               </div>
