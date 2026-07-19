@@ -177,9 +177,9 @@ Supported server environment variables:
 | `ARCHIVE_DATA_DIR` | `./data` | Directory containing both SQLite files |
 | `MANAGE_IFRAMELY` | `1` | Start/stop Iframely through Docker Compose |
 | `IFRAMELY_BACKEND` | `http://localhost:8061` | Iframely service URL |
-| `SEARCH_RATE_LIMIT` | `10` | Searches/minute/IP without Turnstile |
+| `SEARCH_RATE_LIMIT` | `15` | Hard searches/minute/IP (Turnstile cannot bypass) |
 | `READ_RATE_LIMIT` | `60` | Thread/profile reads/minute/IP |
-| `TURNSTILE_SOFT_LIMIT` | `15` | Searches/minute before Turnstile challenge |
+| `TURNSTILE_SOFT_LIMIT` | `10` | Searches/minute before Turnstile challenge |
 | `BLOCK_HARD_LIMIT` | `100` | Searches/minute before temporary IP block |
 | `TURNSTILE_SITE_KEY` | _(empty)_ | Cloudflare Turnstile site key |
 | `TURNSTILE_SECRET_KEY` | _(empty)_ | Cloudflare Turnstile secret (never commit) |

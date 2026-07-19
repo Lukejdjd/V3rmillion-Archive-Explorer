@@ -782,8 +782,6 @@
     const _API_CACHE_TTL_MS = 60_000;
     let _indexAbort = null;
     let _ftsAbort = null;
-    let _indexDebounceTimer = null;
-    let _ftsDebounceTimer = null;
     let _turnstileToken = null;
     let _turnstileSiteKey = null;
     let _turnstileWidgetId = null;
@@ -806,14 +804,6 @@
         const banner = document.getElementById('rate-limit-banner');
         if (banner) banner.classList.remove('visible');
         clearTimeout(_rateLimitHideTimer);
-    }
-
-    function debounce(fn, wait) {
-        let timer = null;
-        return function (...args) {
-            clearTimeout(timer);
-            timer = setTimeout(() => fn.apply(this, args), wait);
-        };
     }
 
     function cacheGet(key) {
@@ -860,10 +850,10 @@
         _turnstileSiteKey = siteKey || _turnstileSiteKey;
         const overlay = document.getElementById('turnstile-overlay');
         if (!_turnstileSiteKey || !overlay) {
-            showRateLimitBanner('Rate limited — wait a minute before searching again.', 12000);
+            showRateLimitBanner('Rate limited. Wait a minute before searching again.', 12000);
             throw new Error('Verification required. Please wait a minute and try again.');
         }
-        showRateLimitBanner('Rate limited — complete the check below to continue searching.', 0);
+        showRateLimitBanner('Rate limited. Complete the check below to continue searching.', 0);
         await waitForTurnstile();
         overlay.classList.add('visible');
         overlay.setAttribute('aria-hidden', 'false');
@@ -881,12 +871,12 @@
                     _turnstileToken = token;
                     overlay.classList.remove('visible');
                     overlay.setAttribute('aria-hidden', 'true');
-                    showRateLimitBanner('Verified — you can keep searching.', 4000);
+                    showRateLimitBanner('Verified. You can keep searching.', 4000);
                     if (_turnstileReady) _turnstileReady.resolve(token);
                     _turnstileReady = null;
                 },
                 'error-callback': () => {
-                    showRateLimitBanner('Verification failed — try again in a moment.', 8000);
+                    showRateLimitBanner('Verification failed. Try again in a moment.', 8000);
                     if (_turnstileReady) _turnstileReady.reject(new Error('Turnstile failed'));
                     _turnstileReady = null;
                 },
@@ -924,7 +914,7 @@
                 headers['cf-turnstile-response'] = _turnstileToken;
                 const retry = await fetch(url, { ...options, headers });
                 if (retry.status === 429) {
-                    showRateLimitBanner(`Still rate limited — try again in ${retryAfter}s.`, Math.max(5000, retryAfter * 1000));
+                    showRateLimitBanner(`Still rate limited. Try again in ${retryAfter}s.`, Math.max(5000, retryAfter * 1000));
                     throw new Error(`Too many requests. Try again in ${retryAfter}s.`);
                 }
                 if (!retry.ok) throw new Error(`HTTP ${retry.status}`);
@@ -938,7 +928,7 @@
             }
             const reason = body.error === 'ip_cooldown' || body.error === 'rate_limit_block'
                 ? 'Temporarily blocked for too many requests'
-                : 'Rate limited — too many searches';
+                : 'Rate limited. Too many searches';
             showRateLimitBanner(`${reason}. Try again in ${retryAfter}s.`, Math.max(5000, retryAfter * 1000));
             throw new Error(`${reason}. Try again in ${retryAfter}s.`);
         }
@@ -1515,16 +1505,6 @@
             else if (v === 'author_id') { lbl.innerText = 'Author ID'; inp.placeholder = 'e.g., 7919002'; }
             else                   { lbl.innerText = 'Keywords'; inp.placeholder = 'Type keywords here...'; }
         });
-
-        const debouncedIndex = debounce(() => {
-            if (currentMode === 'index') triggerIndexSearch();
-        }, 400);
-        const debouncedFts = debounce(() => {
-            if (currentMode === 'fts') triggerFtsSearch();
-        }, 450);
-        document.getElementById('searchInput').addEventListener('input', debouncedIndex);
-        document.getElementById('ftsInput').addEventListener('input', debouncedFts);
-        document.getElementById('ftsAuthor').addEventListener('input', debouncedFts);
 
         try {
             // Quick ping to /api/titles to verify backend is up and get thread count

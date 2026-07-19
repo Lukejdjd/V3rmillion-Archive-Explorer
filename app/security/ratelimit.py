@@ -109,6 +109,7 @@ class RateLimiter:
                 count = len(bucket)
                 recently_verified = self._turnstile_ok_until.get(ip, 0.0) > now
 
+                # Extreme abuse: temporary IP cooldown.
                 if count >= BLOCK_HARD_LIMIT:
                     self._blocked_until[ip] = now + BLOCK_COOLDOWN_SECONDS
                     return RateDecision(
@@ -118,10 +119,8 @@ class RateLimiter:
                         search_count=count,
                     )
 
-                # Without Turnstile: hard stop at SEARCH_RATE_LIMIT (default 10/min).
-                # With Turnstile: free until TURNSTILE_SOFT_LIMIT (default 15/min),
-                # then require a challenge until BLOCK_HARD_LIMIT (default 100/min).
-                if not turnstile_enabled and count >= SEARCH_RATE_LIMIT:
+                # Hard per-minute cap always applies (Turnstile cannot bypass this).
+                if count >= SEARCH_RATE_LIMIT:
                     return RateDecision(
                         allowed=False,
                         reason="rate_limit",
@@ -131,11 +130,9 @@ class RateLimiter:
                         search_count=count,
                     )
 
-                if (
-                    turnstile_enabled
-                    and count >= TURNSTILE_SOFT_LIMIT
-                    and not recently_verified
-                ):
+                # Optional bot check before the hard cap.
+                soft = min(TURNSTILE_SOFT_LIMIT, max(0, SEARCH_RATE_LIMIT - 1))
+                if turnstile_enabled and count >= soft and not recently_verified:
                     bucket.append(now)
                     return RateDecision(
                         allowed=True,

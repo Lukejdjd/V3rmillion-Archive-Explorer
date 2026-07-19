@@ -10,11 +10,11 @@ IFRAMELY_BACKEND = os.environ.get("IFRAMELY_BACKEND", "http://localhost:8061").r
 MANAGE_IFRAMELY = os.environ.get("MANAGE_IFRAMELY", "1").lower() not in {"0", "false", "no"}
 
 # Rate limits (per IP, sliding window)
-SEARCH_RATE_LIMIT = int(os.environ.get("SEARCH_RATE_LIMIT", "10"))
+SEARCH_RATE_LIMIT = int(os.environ.get("SEARCH_RATE_LIMIT", "15"))
 SEARCH_RATE_WINDOW = int(os.environ.get("SEARCH_RATE_WINDOW", "60"))
 READ_RATE_LIMIT = int(os.environ.get("READ_RATE_LIMIT", "60"))
 READ_RATE_WINDOW = int(os.environ.get("READ_RATE_WINDOW", "60"))
-TURNSTILE_SOFT_LIMIT = int(os.environ.get("TURNSTILE_SOFT_LIMIT", "15"))
+TURNSTILE_SOFT_LIMIT = int(os.environ.get("TURNSTILE_SOFT_LIMIT", "10"))
 BLOCK_HARD_LIMIT = int(os.environ.get("BLOCK_HARD_LIMIT", "100"))
 BLOCK_COOLDOWN_SECONDS = int(os.environ.get("BLOCK_COOLDOWN_SECONDS", "300"))
 FAILED_REQUEST_LIMIT = int(os.environ.get("FAILED_REQUEST_LIMIT", "20"))
