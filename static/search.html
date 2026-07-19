@@ -1234,14 +1234,26 @@
             allNames.push({ name: username, start: lastEnd, end: 'present' });
         }
 
+        const histUID = `hist-${uid}`;
         const historyHTML = `<div class="user-stat-row">
             <span class="user-stat-label">Username History</span>
             <span class="user-stat-value" style="flex:1;">
-                ${allNames.length ? allNames.map(u => `
-                    <div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #1a1a1a;">
-                        <span style="color:#aaa;">${escapeHTML(String(u.name))}</span>
-                        <span style="color:#555;font-size:0.72rem;white-space:nowrap;">${escapeHTML(String(u.start))} → ${escapeHTML(String(u.end))}</span>
-                    </div>`).join('') : '<span style="color:#444;font-style:italic;">none</span>'}
+                ${allNames.length ? `
+                    <span style="cursor:pointer;user-select:none;" onclick="
+                        var el=document.getElementById('${histUID}');
+                        var btn=document.getElementById('${histUID}-btn');
+                        if(el.style.display==='none'){el.style.display='block';btn.textContent='▴ collapse';}
+                        else{el.style.display='none';btn.textContent='▾ show ${allNames.length}';}
+                    ">
+                        <span id="${histUID}-btn" style="color:#cd1818;font-weight:600;font-size:0.75rem;">▾ show ${allNames.length}</span>
+                    </span>
+                    <div id="${histUID}" style="display:none;margin-top:6px;">
+                        ${allNames.map(u => `
+                            <div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #1a1a1a;">
+                                <span style="color:#aaa;">${escapeHTML(String(u.name))}</span>
+                                <span style="color:#555;font-size:0.72rem;white-space:nowrap;">${escapeHTML(String(u.start))} → ${escapeHTML(String(u.end))}</span>
+                            </div>`).join('')}
+                    </div>` : '<span style="color:#444;font-style:italic;">none</span>'}
             </span>
         </div>`;
 
@@ -1267,7 +1279,7 @@
             ${awardsHTML}
         `;
     }
-    
+
     function searchByUser(uid, username) {
         console.debug('[profile search posts] searchByUser called', { uid, username });
         document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
@@ -1677,20 +1689,20 @@
         const uid = String(user.user_id || '');
         const name = user.username || 'Unknown';
         const title = user.user_title || user.user_rank || '';
-        const posts = user.post_count || user.posts;
-        const threads = user.thread_count;
-        const rep = user.reputation;
+        const posts = user.post_count || user.posts || '';
+        const threads = user.thread_count || user.threads || '';
+        const rep = user.reputation || '';
         const joined = user.joined || '';
-        
+
         const pills = [];
-        if (posts != null && posts !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-comment-o"></i>${Number(posts).toLocaleString()} posts</span>`);
-        if (threads != null && threads !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-list"></i>${Number(threads).toLocaleString()} threads</span>`);
-        if (rep != null && rep !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-star-o"></i>${Number(rep).toLocaleString()} rep</span>`);
+        if (posts !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-comment-o"></i>${escapeHTML(String(posts))} posts</span>`);
+        if (threads !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-list"></i>${escapeHTML(String(threads))} threads</span>`);
+        if (rep !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-star-o"></i>${escapeHTML(String(rep))} rep</span>`);
         if (joined) pills.push(`<span class="card-meta-pill"><i class="fa fa-clock-o"></i>${escapeHTML(String(joined))}</span>`);
 
         wrapper.innerHTML = `
             <div class="card h-100 shadow-sm" style="cursor:pointer;">
-              <div class="card-body d-flex flex-column">
+            <div class="card-body d-flex flex-column">
                 <div class="mb-1 d-flex align-items-center justify-content-between flex-wrap" style="gap:4px;">
                     <span class="thread-id-badge font-weight-bold">UID: ${escapeHTML(uid)}</span>
                 </div>
@@ -1698,14 +1710,14 @@
                 ${title ? `<div class="card-author-line" style="margin-bottom:6px;">${escapeHTML(title)}</div>` : ''}
                 ${pills.length ? `<div class="card-meta-row">${pills.join('')}</div>` : ''}
                 <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Profile</button>
-              </div>
+            </div>
             </div>`;
         const open = () => showUserProfile(uid, name);
         wrapper.querySelector('.view-json-btn').onclick = (e) => { e.stopPropagation(); open(); };
         wrapper.querySelector('.card').onclick = open;
         return wrapper;
     }
-
+    
     function renderUserPagination(currentOffset, total) {
         const wrap = document.getElementById('user-pagination-wrap');
         wrap.innerHTML = '';
