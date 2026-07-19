@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /iframely
+Disallow: /healthz
+
+# Archive UI is fine to index; API endpoints are for the app, not crawlers.

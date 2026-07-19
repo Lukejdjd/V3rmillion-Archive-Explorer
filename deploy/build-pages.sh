@@ -8,3 +8,4 @@ cp -R stylesheets dist/stylesheets
 cp deploy/pages-index.html dist/index.html
 cp deploy/pages-headers dist/_headers
 cp deploy/pages-redirects dist/_redirects
+cp static/robots.txt dist/robots.txt

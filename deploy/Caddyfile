@@ -1,10 +1,22 @@
 {$SITE_DOMAIN} {
-    encode zstd gzip
-    reverse_proxy archive:8000
+	encode zstd gzip
+	reverse_proxy archive:8000 {
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
 
-    header {
-        X-Content-Type-Options nosniff
-        Referrer-Policy strict-origin-when-cross-origin
-        -Server
-    }
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+		-Server
+	}
+
+	# Automatic HTTPS + certificate renewal is built into Caddy when
+	# SITE_DOMAIN is a public hostname with DNS pointing here.
+	log {
+		output stdout
+		format console
+	}
 }

@@ -1,0 +1,45 @@
+# Monitoring stack for the Oracle Always Free VM (optional).
+#
+# Usage (on the VM, from the repo root):
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# Netdata   -> http://127.0.0.1:19999  (CPU/RAM/disk/network)
+# Uptime Kuma -> http://127.0.0.1:3001 (HTTP checks + alerts)
+#
+# Bind to localhost only. Expose through Cloudflare Tunnel or SSH port-forward;
+# do not open these ports on the public firewall.
+
+services:
+  netdata:
+    image: netdata/netdata:stable
+    hostname: archive-netdata
+    ports:
+      - "127.0.0.1:19999:19999"
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - netdataconfig:/etc/netdata
+      - netdatalib:/var/lib/netdata
+      - netdatacache:/var/cache/netdata
+      - /etc/passwd:/host/etc/passwd:ro
+      - /etc/group:/host/etc/group:ro
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /etc/os-release:/host/etc/os-release:ro
+    restart: unless-stopped
+
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  netdataconfig:
+  netdatalib:
+  netdatacache:
+  uptime_kuma_data:
