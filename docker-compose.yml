@@ -23,6 +23,7 @@ services:
       CACHE_TTL_THREAD: ${CACHE_TTL_THREAD:-120}
       CACHE_TTL_USER: ${CACHE_TTL_USER:-300}
       LOG_REQUESTS: ${LOG_REQUESTS:-1}
+      RATE_LIMIT_DB: /tmp/archive-ratelimit.db
     volumes:
       - ./data:/app/data:ro
     ports:

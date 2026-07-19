@@ -1530,24 +1530,40 @@
     // ════════════════════════════════════════════════════════════════════════
     // DEEP LINKING
     // ════════════════════════════════════════════════════════════════════════
+    function shouldAutoRunDeepLinkSearch(kind) {
+        // Spam-refreshing ?q=... links should not re-hit search APIs every reload.
+        const key = `deeplink:${kind}:${window.location.search}`;
+        try {
+            const prev = Number(sessionStorage.getItem(key) || '0');
+            if (prev && (Date.now() - prev) < 60_000) return false;
+            sessionStorage.setItem(key, String(Date.now()));
+        } catch (_) {}
+        return true;
+    }
+
     function checkDeepLinkingParameter() {
         const urlParams = new URLSearchParams(window.location.search);
         const targetThreadId = urlParams.get('id');
-        if (targetThreadId) { fetchAndRenderThread(targetThreadId); return; }
+        if (targetThreadId) {
+            if (shouldAutoRunDeepLinkSearch('thread')) {
+                fetchAndRenderThread(targetThreadId);
+            }
+            return;
+        }
 
         const mode = urlParams.get('mode');
         if (mode === 'fts') {
             switchMode('fts');
             const q      = urlParams.get('q')   || '';
-        const author = urlParams.get('uid') || '';
-        if (q)      document.getElementById('ftsInput').value  = q;
-        if (author) document.getElementById('ftsAuthor').value = author;
-        if (q || author) {
-            suppressUrlUpdate = true;
-            triggerFtsSearch();
-            suppressUrlUpdate = false;
-        }
-        return;
+            const author = urlParams.get('uid') || '';
+            if (q)      document.getElementById('ftsInput').value  = q;
+            if (author) document.getElementById('ftsAuthor').value = author;
+            if ((q || author) && shouldAutoRunDeepLinkSearch('fts')) {
+                suppressUrlUpdate = true;
+                triggerFtsSearch();
+                suppressUrlUpdate = false;
+            }
+            return;
         }
 
         const cat   = urlParams.get('cat')   || '';
@@ -1567,9 +1583,11 @@
 
         if (cat || query || sort !== 'relevance' || order !== 'asc') {
             indexLastParams = { q: query, cat, smode, sort, order };
-            suppressUrlUpdate = true;
-            runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
-            suppressUrlUpdate = false;
+            if (shouldAutoRunDeepLinkSearch('index')) {
+                suppressUrlUpdate = true;
+                runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
+                suppressUrlUpdate = false;
+            }
         }
     }
 

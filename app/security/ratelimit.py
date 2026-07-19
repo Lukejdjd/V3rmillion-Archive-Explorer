@@ -1,12 +1,14 @@
-"""In-memory sliding-window rate limiting and abuse cooldowns."""
+"""Shared sliding-window rate limiting across Uvicorn workers via SQLite."""
 
 from __future__ import annotations
 
+import os
+import sqlite3
+import tempfile
 import threading
 import time
-from collections import defaultdict, deque
 from dataclasses import dataclass
-from typing import Deque
+from pathlib import Path
 
 from fastapi import Request
 
@@ -37,6 +39,13 @@ READ_PATHS = {
     "/api/user",
 }
 
+RATE_LIMIT_DB = Path(
+    os.environ.get(
+        "RATE_LIMIT_DB",
+        str(Path(tempfile.gettempdir()) / "archive-ratelimit.db"),
+    )
+)
+
 
 @dataclass
 class RateDecision:
@@ -59,44 +68,146 @@ def client_ip(request: Request) -> str:
 
 
 class RateLimiter:
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._search: dict[str, Deque[float]] = defaultdict(deque)
-        self._read: dict[str, Deque[float]] = defaultdict(deque)
-        self._failed: dict[str, Deque[float]] = defaultdict(deque)
-        self._blocked_until: dict[str, float] = {}
-        self._turnstile_ok_until: dict[str, float] = {}
+    """Process-safe limiter: all Uvicorn workers share one SQLite file."""
 
-    def _prune(self, bucket: Deque[float], window: float, now: float) -> None:
-        while bucket and now - bucket[0] > window:
-            bucket.popleft()
+    def __init__(self, db_path: Path = RATE_LIMIT_DB) -> None:
+        self._db_path = Path(db_path)
+        self._local = threading.local()
+        self._init_lock = threading.Lock()
+        self._initialized = False
+
+    def _connect(self) -> sqlite3.Connection:
+        if not getattr(self._local, "conn", None):
+            self._db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(
+                str(self._db_path),
+                timeout=5.0,
+                isolation_level=None,  # autocommit; we use explicit BEGIN
+                check_same_thread=False,
+            )
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute("PRAGMA busy_timeout=5000")
+            self._local.conn = conn
+            self._ensure_schema(conn)
+        return self._local.conn
+
+    def _ensure_schema(self, conn: sqlite3.Connection) -> None:
+        if self._initialized:
+            return
+        with self._init_lock:
+            if self._initialized:
+                return
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS events (
+                    kind TEXT NOT NULL,
+                    ip TEXT NOT NULL,
+                    ts REAL NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_events_kind_ip_ts "
+                "ON events(kind, ip, ts)"
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS flags (
+                    ip TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    until_ts REAL NOT NULL,
+                    PRIMARY KEY (ip, name)
+                )
+                """
+            )
+            self._initialized = True
+
+    def _prune(self, conn: sqlite3.Connection, kind: str, ip: str, cutoff: float) -> None:
+        conn.execute(
+            "DELETE FROM events WHERE kind = ? AND ip = ? AND ts < ?",
+            (kind, ip, cutoff),
+        )
+
+    def _count(self, conn: sqlite3.Connection, kind: str, ip: str, window: float, now: float) -> int:
+        cutoff = now - window
+        self._prune(conn, kind, ip, cutoff)
+        row = conn.execute(
+            "SELECT COUNT(*) FROM events WHERE kind = ? AND ip = ? AND ts >= ?",
+            (kind, ip, cutoff),
+        ).fetchone()
+        return int(row[0] if row else 0)
+
+    def _add(self, conn: sqlite3.Connection, kind: str, ip: str, now: float) -> None:
+        conn.execute(
+            "INSERT INTO events(kind, ip, ts) VALUES (?, ?, ?)",
+            (kind, ip, now),
+        )
+
+    def _flag_until(self, conn: sqlite3.Connection, ip: str, name: str) -> float:
+        row = conn.execute(
+            "SELECT until_ts FROM flags WHERE ip = ? AND name = ?",
+            (ip, name),
+        ).fetchone()
+        return float(row[0]) if row else 0.0
+
+    def _set_flag(self, conn: sqlite3.Connection, ip: str, name: str, until_ts: float) -> None:
+        conn.execute(
+            "INSERT INTO flags(ip, name, until_ts) VALUES (?, ?, ?) "
+            "ON CONFLICT(ip, name) DO UPDATE SET until_ts = excluded.until_ts",
+            (ip, name, until_ts),
+        )
 
     def record_failure(self, ip: str) -> None:
-        now = time.monotonic()
-        with self._lock:
-            bucket = self._failed[ip]
-            bucket.append(now)
-            self._prune(bucket, FAILED_REQUEST_WINDOW, now)
-            if len(bucket) >= FAILED_REQUEST_LIMIT:
-                self._blocked_until[ip] = now + BLOCK_COOLDOWN_SECONDS
+        now = time.time()
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            self._add(conn, "failed", ip, now)
+            count = self._count(conn, "failed", ip, FAILED_REQUEST_WINDOW, now)
+            if count >= FAILED_REQUEST_LIMIT:
+                self._set_flag(conn, ip, "blocked", now + BLOCK_COOLDOWN_SECONDS)
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
     def mark_honeypot(self, ip: str) -> None:
-        with self._lock:
-            self._blocked_until[ip] = time.monotonic() + BLOCK_COOLDOWN_SECONDS
-            self._turnstile_ok_until.pop(ip, None)
+        now = time.time()
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            self._set_flag(conn, ip, "blocked", now + BLOCK_COOLDOWN_SECONDS)
+            conn.execute(
+                "DELETE FROM flags WHERE ip = ? AND name = ?",
+                (ip, "turnstile"),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
     def mark_turnstile_passed(self, ip: str, grace: int | None = None) -> None:
         seconds = TURNSTILE_GRACE_SECONDS if grace is None else grace
-        with self._lock:
-            self._turnstile_ok_until[ip] = time.monotonic() + max(30, seconds)
+        now = time.time()
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            self._set_flag(conn, ip, "turnstile", now + max(30, seconds))
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
 
     def check(self, ip: str, path: str) -> RateDecision:
-        now = time.monotonic()
+        now = time.time()
         turnstile_enabled = bool(TURNSTILE_SECRET_KEY)
-
-        with self._lock:
-            blocked_until = self._blocked_until.get(ip, 0.0)
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            blocked_until = self._flag_until(conn, ip, "blocked")
             if blocked_until > now:
+                conn.execute("COMMIT")
                 return RateDecision(
                     allowed=False,
                     reason="ip_cooldown",
@@ -104,14 +215,12 @@ class RateLimiter:
                 )
 
             if path in SEARCH_PATHS:
-                bucket = self._search[ip]
-                self._prune(bucket, SEARCH_RATE_WINDOW, now)
-                count = len(bucket)
-                recently_verified = self._turnstile_ok_until.get(ip, 0.0) > now
+                count = self._count(conn, "search", ip, SEARCH_RATE_WINDOW, now)
+                recently_verified = self._flag_until(conn, ip, "turnstile") > now
 
-                # Extreme abuse: temporary IP cooldown.
                 if count >= BLOCK_HARD_LIMIT:
-                    self._blocked_until[ip] = now + BLOCK_COOLDOWN_SECONDS
+                    self._set_flag(conn, ip, "blocked", now + BLOCK_COOLDOWN_SECONDS)
+                    conn.execute("COMMIT")
                     return RateDecision(
                         allowed=False,
                         reason="rate_limit_block",
@@ -119,28 +228,30 @@ class RateLimiter:
                         search_count=count,
                     )
 
-                # Hard per-minute cap always applies (Turnstile cannot bypass this).
                 if count >= SEARCH_RATE_LIMIT:
+                    oldest = conn.execute(
+                        "SELECT MIN(ts) FROM events WHERE kind = 'search' AND ip = ? "
+                        "AND ts >= ?",
+                        (ip, now - SEARCH_RATE_WINDOW),
+                    ).fetchone()
+                    oldest_ts = float(oldest[0]) if oldest and oldest[0] is not None else now
+                    conn.execute("COMMIT")
                     return RateDecision(
                         allowed=False,
                         reason="rate_limit",
-                        retry_after=max(
-                            1, int(SEARCH_RATE_WINDOW - (now - bucket[0]))
-                        ),
+                        retry_after=max(1, int(SEARCH_RATE_WINDOW - (now - oldest_ts))),
                         search_count=count,
                     )
 
-                # Optional bot check before the hard cap.
                 soft = min(TURNSTILE_SOFT_LIMIT, max(0, SEARCH_RATE_LIMIT - 1))
+                self._add(conn, "search", ip, now)
+                conn.execute("COMMIT")
                 if turnstile_enabled and count >= soft and not recently_verified:
-                    bucket.append(now)
                     return RateDecision(
                         allowed=True,
                         require_turnstile=True,
                         search_count=count + 1,
                     )
-
-                bucket.append(now)
                 return RateDecision(
                     allowed=True,
                     require_turnstile=False,
@@ -148,20 +259,32 @@ class RateLimiter:
                 )
 
             if path in READ_PATHS:
-                bucket = self._read[ip]
-                self._prune(bucket, READ_RATE_WINDOW, now)
-                if len(bucket) >= READ_RATE_LIMIT:
+                count = self._count(conn, "read", ip, READ_RATE_WINDOW, now)
+                if count >= READ_RATE_LIMIT:
+                    oldest = conn.execute(
+                        "SELECT MIN(ts) FROM events WHERE kind = 'read' AND ip = ? "
+                        "AND ts >= ?",
+                        (ip, now - READ_RATE_WINDOW),
+                    ).fetchone()
+                    oldest_ts = float(oldest[0]) if oldest and oldest[0] is not None else now
+                    conn.execute("COMMIT")
                     return RateDecision(
                         allowed=False,
                         reason="rate_limit",
-                        retry_after=max(
-                            1, int(READ_RATE_WINDOW - (now - bucket[0]))
-                        ),
+                        retry_after=max(1, int(READ_RATE_WINDOW - (now - oldest_ts))),
                     )
-                bucket.append(now)
+                self._add(conn, "read", ip, now)
+                conn.execute("COMMIT")
                 return RateDecision(allowed=True)
 
+            conn.execute("COMMIT")
             return RateDecision(allowed=True)
+        except Exception:
+            try:
+                conn.execute("ROLLBACK")
+            except Exception:
+                pass
+            raise
 
 
 _limiter = RateLimiter()
