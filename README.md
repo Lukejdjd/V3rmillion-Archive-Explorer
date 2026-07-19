@@ -114,9 +114,29 @@ docker compose logs -f iframely
 docker compose down
 ```
 
+## Quick local test (Windows)
+
+Databases must already be at `data/users.db` and `data/threads.db`.
+
+```powershell
+pip install -r requirements.txt
+$env:MANAGE_IFRAMELY = "0"
+$env:WEB_CONCURRENCY = "1"
+python main.py
+```
+
+Then open <http://localhost:8000/static/search.html> and try a thread search.
+Health check: <http://localhost:8000/healthz>
+
+Docker alternative (rebuilds with FastAPI baked into the image):
+
+```powershell
+docker compose up -d --build archive
+```
+
 ## Run locally with Python
 
-The API runs on FastAPI + Uvicorn. Install runtime dependencies first:
+The API runs on FastAPI + Uvicorn. Prefer a venv for a clean install:
 
 ```bash
 python -m venv .venv
