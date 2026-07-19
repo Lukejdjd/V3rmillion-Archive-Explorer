@@ -119,7 +119,7 @@ class RateLimiter:
                     )
 
                 # Without Turnstile: hard stop at SEARCH_RATE_LIMIT (default 10/min).
-                # With Turnstile: free until TURNSTILE_SOFT_LIMIT (default 30/min),
+                # With Turnstile: free until TURNSTILE_SOFT_LIMIT (default 10/min),
                 # then require a challenge until BLOCK_HARD_LIMIT (default 100/min).
                 if not turnstile_enabled and count >= SEARCH_RATE_LIMIT:
                     return RateDecision(
