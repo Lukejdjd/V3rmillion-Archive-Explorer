@@ -115,7 +115,7 @@ def user_posts(
 @router.get("/search_users")
 def search_users(
     q: str = Query(""),
-    sort: str = Query("relevance"),
+    sort: str = Query("username"),
     order: str = Query("desc"),
     offset: int = Query(0),
     limit: int = Query(24),
@@ -184,7 +184,7 @@ def search_users(
 
     dir_sql = "ASC" if order == "asc" else "DESC"
     if sort == "relevance" and not q:
-        sort = "post_count"
+        sort = "username"
 
     def append_numeric_filters(sql: str, alias: str = "") -> tuple[str, list[Any]]:
         prefix = f"{alias}." if alias else ""

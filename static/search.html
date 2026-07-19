@@ -745,10 +745,10 @@
                     <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
                         <label class="small font-weight-bold text-muted mb-1 d-block">Sort by</label>
                         <select id="userSortBy" class="form-control filter-select">
-                            <option value="post_count" selected>Post count</option>
+                            <option value="username" selected>Username</option>
+                            <option value="post_count">Post count</option>
                             <option value="reputation">Reputation</option>
                             <option value="thread_count">Thread count</option>
-                            <option value="username">Username</option>
                             <option value="joined">Joined</option>
                             <option value="user_id">User ID</option>
                             <option value="relevance">Relevance</option>
@@ -1572,7 +1572,7 @@
         setUrlState({
             mode: 'users',
             q: p.q,
-            sort: p.sort && p.sort !== 'post_count' ? p.sort : '',
+            sort: p.sort && p.sort !== 'username' ? p.sort : '',
             order: p.order && p.order !== 'desc' ? p.order : '',
             min_rep: p.min_rep,
             max_rep: p.max_rep,
@@ -1636,7 +1636,7 @@
 
         const p = userLastParams || {};
         const params = new URLSearchParams({
-            sort: p.sort || 'post_count',
+            sort: p.sort || 'username',
             order: p.order || 'desc',
             offset,
             limit: USER_PAGE_SIZE,
