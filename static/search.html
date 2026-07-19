@@ -661,6 +661,19 @@
         </div>
 
     </div><!-- /.page-box -->
+
+    <div style="text-align:center;padding:12px 0 18px;font-size:0.85rem;color:#555;letter-spacing:0.5px;font-family:'Rajdhani','Open Sans',sans-serif;">
+        Archive Explorer by&nbsp;
+        <a href="https://github.com/Lukejdjd" target="_blank" rel="noopener"
+        style="color:#cd1818;text-decoration:none;font-weight:600;">
+            <i class="fa fa-github" style="margin-right:3px;"></i>Lukejdjd
+        </a>
+        <span style="color:#2a2a2a;margin:0 8px;">|</span>
+        <a href="https://github.com/Lukejdjd/V3rmillion-Archive-Explorer" target="_blank" rel="noopener"
+        style="color:#cd1818;text-decoration:none;font-weight:600;">
+            <i class="fa fa-github" style="margin-right:3px;"></i>Source code
+        </a>
+    </div>
 </div><!-- /#content -->
 
     <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
@@ -1565,6 +1578,25 @@
             return `<a href="${escapeAttr(safeHref)}" target="_blank" rel="noopener">${escapeHTML(String(text || '').trim())}</a>`;
         }
 
+        function rewriteV3rmillionLinks(container) {
+            container.querySelectorAll('a[href*="v3rmillion.net"]').forEach(link => {
+                const href = link.getAttribute('href');
+                try {
+                    const url = new URL(href);
+                    const tid = url.searchParams.get('tid');
+                    const uid = url.searchParams.get('uid');
+                    if (tid) {
+                        link.setAttribute('href', `/static/search.html?id=${tid}`);
+                    } else if (uid) {
+                        link.setAttribute('href', `/static/search.html?mode=fts&uid=${uid}`);
+                    } else {
+                        link.setAttribute('href', '#');
+                    }
+                    link.textContent = href;
+                } catch {}
+            });
+        }
+
         // Convert markdown image/link syntax emitted by the parser before
         // bare URL detection, so URLs inside markdown are never linkified twice.
         processed = processed
@@ -1702,6 +1734,7 @@
                 }
             }
             _walk(container);
+            rewriteV3rmillionLinks(container);
         }
         wrapBareUrls(container);
 
