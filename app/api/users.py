@@ -115,6 +115,7 @@ def user_posts(
 @router.get("/search_users")
 def search_users(
     q: str = Query(""),
+    by: str = Query("username"),
     sort: str = Query("username"),
     order: str = Query("desc"),
     offset: int = Query(0),
@@ -127,6 +128,9 @@ def search_users(
     max_threads: str | None = None,
 ) -> dict[str, Any]:
     q = (q or "").strip()
+    by = (by or "username").strip().lower()
+    if by not in {"username", "user_id"}:
+        by = "username"
     offset = bounded_int(offset, 0, 0, 100_000_000)
     limit = bounded_int(limit, 24, 1, 100)
 
@@ -150,6 +154,7 @@ def search_users(
         "search_users",
         {
             "q": q,
+            "by": by,
             "sort": sort,
             "order": order,
             "offset": offset,
@@ -183,7 +188,7 @@ def search_users(
     )
 
     dir_sql = "ASC" if order == "asc" else "DESC"
-    if sort == "relevance" and not q:
+    if sort == "relevance" and (not q or by == "user_id"):
         sort = "username"
 
     def append_numeric_filters(sql: str, alias: str = "") -> tuple[str, list[Any]]:
@@ -218,7 +223,20 @@ def search_users(
 
     try:
         used_fts = False
-        if has_fts and q:
+
+        if by == "user_id":
+            base = (
+                "SELECT user_id, username, user_title, user_rank, "
+                "reputation, post_count, thread_count, user_stars, "
+                "user_group, joined, awards, past_usernames FROM users WHERE 1=1"
+            )
+            params = []
+            if q:
+                base += " AND CAST(user_id AS TEXT) = ?"
+                params.append(q)
+            base, extra = append_numeric_filters(base)
+            params.extend(extra)
+        elif has_fts and q:
             prefix_q = sanitize_fts_prefix_query(q)
             if prefix_q:
                 base = (
@@ -237,7 +255,7 @@ def search_users(
         else:
             base = ""
 
-        if not used_fts:
+        if by != "user_id" and not used_fts:
             base = (
                 "SELECT user_id, username, user_title, user_rank, "
                 "reputation, post_count, thread_count, user_stars, "
