@@ -40,6 +40,21 @@ def sanitize_fts_query(q: str) -> str:
     return '"' + q.replace('"', '""') + '"'
 
 
+def sanitize_fts_prefix_query(q: str) -> str:
+    """Build an FTS5 prefix query so partial tokens match (e.g. moo -> moo*)."""
+    cleaned = []
+    for ch in q.strip():
+        if ch.isalnum() or ch in {"_", "-", "."}:
+            cleaned.append(ch)
+        elif ch.isspace():
+            cleaned.append(" ")
+    tokens = [t for t in "".join(cleaned).split() if t]
+    if not tokens:
+        return ""
+    # Prefix each token; AND them together for multi-word input.
+    return " ".join(f'"{t}"*' for t in tokens)
+
+
 def fts_join_clause(cur: sqlite3.Cursor, table: str, content_table: str, id_col: str) -> tuple[bool, str]:
     cur.execute("SELECT sql FROM sqlite_master WHERE name=?", (table,))
     row = cur.fetchone()

@@ -544,6 +544,9 @@
             <button class="search-mode-tab" id="tab-fts" onclick="switchMode('fts')">
                 <i class="fa fa-search"></i>&nbsp; Post Content Search
             </button>
+            <button class="search-mode-tab" id="tab-users" onclick="switchMode('users')">
+                <i class="fa fa-users"></i>&nbsp; Users
+            </button>
         </div>
 
         <!-- ══════════════════════════════════════════════════════════════════ -->
@@ -728,6 +731,70 @@
             </div>
         </div>
 
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <!-- USER SEARCH PANEL                                                 -->
+        <!-- ══════════════════════════════════════════════════════════════════ -->
+        <div id="panel-users" style="display:none;">
+            <form action="#" class="search-toolbar" onsubmit="triggerUserSearch(); return false;">
+                <input type="text" name="website" id="hp-users" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
+                <div class="form-row" style="display:flex;flex-wrap:wrap;margin:0 -6px;">
+                    <div class="col-lg-4 col-md-6 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Username (partial OK)</label>
+                        <input type="text" id="userSearchInput" class="form-control" placeholder="e.g. moon, jack, syn">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Sort by</label>
+                        <select id="userSortBy" class="form-control filter-select">
+                            <option value="post_count" selected>Post count</option>
+                            <option value="reputation">Reputation</option>
+                            <option value="thread_count">Thread count</option>
+                            <option value="username">Username</option>
+                            <option value="joined">Joined</option>
+                            <option value="user_id">User ID</option>
+                            <option value="relevance">Relevance</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Order</label>
+                        <select id="userSortOrder" class="form-control filter-select">
+                            <option value="desc" selected>Descending</option>
+                            <option value="asc">Ascending</option>
+                        </select>
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Min reputation</label>
+                        <input type="number" id="userMinRep" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Max reputation</label>
+                        <input type="number" id="userMaxRep" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Min posts</label>
+                        <input type="number" id="userMinPosts" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Max posts</label>
+                        <input type="number" id="userMaxPosts" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Min threads</label>
+                        <input type="number" id="userMinThreads" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
+                        <label class="small font-weight-bold text-muted mb-1 d-block">Max threads</label>
+                        <input type="number" id="userMaxThreads" class="form-control" placeholder="any">
+                    </div>
+                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;display:flex;align-items:flex-end;">
+                        <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="width:100%;height:calc(1.5em + .75rem + 2px);">Search Users</button>
+                    </div>
+                </div>
+            </form>
+            <div id="user-metrics" class="search-metrics"></div>
+            <div class="row justify-content-center mb-4" id="user-results"></div>
+            <div id="user-pagination-wrap"></div>
+        </div>
+
     </div><!-- /.page-box -->
 
     <div style="text-align:center;padding:12px 0 18px;font-size:0.85rem;color:#555;letter-spacing:0.5px;font-family:'Rajdhani','Open Sans',sans-serif;">
@@ -851,7 +918,8 @@
     function honeypotFilled() {
         const a = document.getElementById('hp-index');
         const b = document.getElementById('hp-fts');
-        return Boolean((a && a.value) || (b && b.value));
+        const c = document.getElementById('hp-users');
+        return Boolean((a && a.value) || (b && b.value) || (c && c.value));
     }
 
     function waitForTurnstile(timeoutMs = 8000) {
@@ -969,12 +1037,20 @@
     // ════════════════════════════════════════════════════════════════════════
     let currentMode = 'index';
 
+    // User search state
+    let userOffset = 0;
+    let userTotal = null;
+    let userLastParams = null;
+    const USER_PAGE_SIZE = 24;
+
     function switchMode(mode) {
         currentMode = mode;
         document.getElementById('panel-index').style.display = mode === 'index' ? '' : 'none';
         document.getElementById('panel-fts').style.display   = mode === 'fts'   ? '' : 'none';
+        document.getElementById('panel-users').style.display = mode === 'users' ? '' : 'none';
         document.getElementById('tab-index').classList.toggle('active', mode === 'index');
         document.getElementById('tab-fts').classList.toggle('active',   mode === 'fts');
+        document.getElementById('tab-users').classList.toggle('active', mode === 'users');
     }
 
     function setUrlState(paramsObj, replace = false) {
@@ -1480,6 +1556,201 @@
         if (!ftsExhausted && ftsLastParams) runFtsQuery(false);
     }
 
+    // ════════════════════════════════════════════════════════════════════════
+    // USER SEARCH
+    // ════════════════════════════════════════════════════════════════════════
+    function optionalNumberInput(id) {
+        const raw = (document.getElementById(id).value || '').trim();
+        if (!raw) return '';
+        const n = Number(raw);
+        return Number.isFinite(n) ? String(n) : '';
+    }
+
+    function updateUserUrl(offset = userOffset, replace = false) {
+        if (!userLastParams) return;
+        const p = userLastParams;
+        setUrlState({
+            mode: 'users',
+            q: p.q,
+            sort: p.sort && p.sort !== 'post_count' ? p.sort : '',
+            order: p.order && p.order !== 'desc' ? p.order : '',
+            min_rep: p.min_rep,
+            max_rep: p.max_rep,
+            min_posts: p.min_posts,
+            max_posts: p.max_posts,
+            min_threads: p.min_threads,
+            max_threads: p.max_threads,
+            offset: offset || ''
+        }, replace);
+    }
+
+    function triggerUserSearch() {
+        userOffset = 0;
+        userTotal = null;
+        document.getElementById('user-results').innerHTML = '';
+        document.getElementById('user-pagination-wrap').innerHTML = '';
+        document.getElementById('user-metrics').style.display = 'none';
+
+        userLastParams = {
+            q: document.getElementById('userSearchInput').value.trim(),
+            sort: document.getElementById('userSortBy').value,
+            order: document.getElementById('userSortOrder').value,
+            min_rep: optionalNumberInput('userMinRep'),
+            max_rep: optionalNumberInput('userMaxRep'),
+            min_posts: optionalNumberInput('userMinPosts'),
+            max_posts: optionalNumberInput('userMaxPosts'),
+            min_threads: optionalNumberInput('userMinThreads'),
+            max_threads: optionalNumberInput('userMaxThreads'),
+        };
+        if (!suppressUrlUpdate) updateUserUrl(0);
+        runUserQuery(0, true);
+    }
+
+    function renderUserResults(data, offset, elapsedMs) {
+        const container = document.getElementById('user-results');
+        const rows = data.results || [];
+        const total = data.total ?? rows.length;
+        userTotal = total;
+        userOffset = offset;
+        container.innerHTML = '';
+
+        if (!rows.length && offset === 0) {
+            container.innerHTML = `<div class="col-12"><p class="text-center text-muted my-4">No users found matching those parameters.</p></div>`;
+            return;
+        }
+
+        rows.forEach(user => container.appendChild(buildUserCard(user)));
+        const metricsEl = document.getElementById('user-metrics');
+        const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
+        metricsEl.textContent = `${Number(total).toLocaleString()} user${total === 1 ? '' : 's'} found${timing}`;
+        metricsEl.style.display = 'flex';
+        renderUserPagination(offset, total);
+    }
+
+    async function runUserQuery(offset, replace = false) {
+        const container = document.getElementById('user-results');
+        if (replace) {
+            container.innerHTML = `<div class="col-12 text-center py-4" style="color:#555;">
+                <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching users…</div>`;
+        }
+
+        const p = userLastParams || {};
+        const params = new URLSearchParams({
+            sort: p.sort || 'post_count',
+            order: p.order || 'desc',
+            offset,
+            limit: USER_PAGE_SIZE,
+        });
+        if (p.q) params.set('q', p.q);
+        if (p.min_rep !== '') params.set('min_rep', p.min_rep);
+        if (p.max_rep !== '') params.set('max_rep', p.max_rep);
+        if (p.min_posts !== '') params.set('min_posts', p.min_posts);
+        if (p.max_posts !== '') params.set('max_posts', p.max_posts);
+        if (p.min_threads !== '') params.set('min_threads', p.min_threads);
+        if (p.max_threads !== '') params.set('max_threads', p.max_threads);
+
+        const url = `/api/search_users?${params}`;
+        const cached = cacheGet(url);
+        if (cached) {
+            renderUserResults(cached, offset, null);
+            return;
+        }
+
+        const t0 = performance.now();
+        try {
+            const res = await apiFetch(url);
+            const data = await res.json();
+            if (data.error) throw new Error(data.error);
+            renderUserResults(data, offset, performance.now() - t0);
+        } catch (err) {
+            container.innerHTML = `<div class="col-12"><p class="text-center text-danger my-4">Search error: ${escapeHTML(err.message)}</p></div>`;
+        }
+    }
+
+    function buildUserCard(user) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'col-md-6 col-lg-4 index-result-col mb-4';
+        const uid = String(user.user_id || '');
+        const name = user.username || 'Unknown';
+        const title = user.user_title || user.user_rank || '';
+        const posts = user.post_count;
+        const threads = user.thread_count;
+        const rep = user.reputation;
+        const joined = user.joined || '';
+        const past = Array.isArray(user.past_usernames)
+            ? user.past_usernames.map(x => (x && x.username) || x).filter(Boolean).slice(0, 3)
+            : [];
+
+        const pills = [];
+        if (posts != null && posts !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-comment-o"></i>${Number(posts).toLocaleString()} posts</span>`);
+        if (threads != null && threads !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-list"></i>${Number(threads).toLocaleString()} threads</span>`);
+        if (rep != null && rep !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-star-o"></i>${Number(rep).toLocaleString()} rep</span>`);
+        if (joined) pills.push(`<span class="card-meta-pill"><i class="fa fa-clock-o"></i>${escapeHTML(String(joined))}</span>`);
+
+        wrapper.innerHTML = `
+            <div class="card h-100 shadow-sm" style="cursor:pointer;">
+              <div class="card-body d-flex flex-column">
+                <div class="mb-1 d-flex align-items-center justify-content-between flex-wrap" style="gap:4px;">
+                    <span class="thread-id-badge font-weight-bold">UID: ${escapeHTML(uid)}</span>
+                </div>
+                <h5 class="card-title mb-1" style="color:#cd1818;">${escapeHTML(name)}</h5>
+                ${title ? `<div class="card-author-line" style="margin-bottom:6px;">${escapeHTML(title)}</div>` : ''}
+                ${past.length ? `<div style="font-size:0.72rem;color:#666;margin-bottom:6px;">also: ${escapeHTML(past.join(', '))}</div>` : ''}
+                ${pills.length ? `<div class="card-meta-row">${pills.join('')}</div>` : ''}
+                <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Profile</button>
+              </div>
+            </div>`;
+        const open = () => showUserProfile(uid, name);
+        wrapper.querySelector('.view-json-btn').onclick = (e) => { e.stopPropagation(); open(); };
+        wrapper.querySelector('.card').onclick = open;
+        return wrapper;
+    }
+
+    function renderUserPagination(currentOffset, total) {
+        const wrap = document.getElementById('user-pagination-wrap');
+        wrap.innerHTML = '';
+        const totalPages = Math.ceil(total / USER_PAGE_SIZE);
+        if (totalPages <= 1) return;
+
+        const currentPage = Math.floor(currentOffset / USER_PAGE_SIZE) + 1;
+        const prev = document.createElement('button');
+        prev.className = 'idx-page-btn';
+        prev.textContent = '« Prev';
+        prev.disabled = currentPage <= 1;
+        prev.onclick = () => {
+            const pageOffset = (currentPage - 2) * USER_PAGE_SIZE;
+            updateUserUrl(pageOffset);
+            runUserQuery(pageOffset, true);
+        };
+        wrap.appendChild(prev);
+
+        let startP = Math.max(1, currentPage - 3);
+        let endP = Math.min(totalPages, startP + 6);
+        if (endP - startP < 6) startP = Math.max(1, endP - 6);
+        for (let i = startP; i <= endP; i++) {
+            const btn = document.createElement('button');
+            btn.className = 'idx-page-btn' + (i === currentPage ? ' active' : '');
+            btn.textContent = i;
+            const pageOffset = (i - 1) * USER_PAGE_SIZE;
+            btn.onclick = () => {
+                updateUserUrl(pageOffset);
+                runUserQuery(pageOffset, true);
+            };
+            wrap.appendChild(btn);
+        }
+
+        const next = document.createElement('button');
+        next.className = 'idx-page-btn';
+        next.textContent = 'Next »';
+        next.disabled = currentPage >= totalPages;
+        next.onclick = () => {
+            const pageOffset = currentPage * USER_PAGE_SIZE;
+            updateUserUrl(pageOffset);
+            runUserQuery(pageOffset, true);
+        };
+        wrap.appendChild(next);
+    }
+
     function buildFtsResultRow(post) {
         const div         = document.createElement('div');
         div.className     = 'post-result-card';
@@ -1573,6 +1844,48 @@
         }
 
         const mode = urlParams.get('mode');
+        if (mode === 'users') {
+            switchMode('users');
+            const q = urlParams.get('q') || '';
+            if (q) document.getElementById('userSearchInput').value = q;
+            const sort = urlParams.get('sort');
+            const order = urlParams.get('order');
+            if (sort) document.getElementById('userSortBy').value = sort;
+            if (order) document.getElementById('userSortOrder').value = order;
+            ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'].forEach((key) => {
+                const map = {
+                    min_rep: 'userMinRep',
+                    max_rep: 'userMaxRep',
+                    min_posts: 'userMinPosts',
+                    max_posts: 'userMaxPosts',
+                    min_threads: 'userMinThreads',
+                    max_threads: 'userMaxThreads',
+                };
+                const val = urlParams.get(key);
+                if (val != null && val !== '') document.getElementById(map[key]).value = val;
+            });
+            const filterKeys = ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'];
+            const hasFilters = Boolean(q || sort || order || filterKeys.some((k) => urlParams.get(k)));
+            const off = parseInt(urlParams.get('offset') || '0', 10) || 0;
+            if (hasFilters || off > 0) {
+                suppressUrlUpdate = true;
+                userLastParams = {
+                    q: document.getElementById('userSearchInput').value.trim(),
+                    sort: document.getElementById('userSortBy').value,
+                    order: document.getElementById('userSortOrder').value,
+                    min_rep: optionalNumberInput('userMinRep'),
+                    max_rep: optionalNumberInput('userMaxRep'),
+                    min_posts: optionalNumberInput('userMinPosts'),
+                    max_posts: optionalNumberInput('userMaxPosts'),
+                    min_threads: optionalNumberInput('userMinThreads'),
+                    max_threads: optionalNumberInput('userMaxThreads'),
+                };
+                runUserQuery(off, true);
+                suppressUrlUpdate = false;
+            }
+            return;
+        }
+
         if (mode === 'fts') {
             switchMode('fts');
             const q      = urlParams.get('q')   || '';
@@ -2395,6 +2708,43 @@
         if (threadId) { await fetchAndRenderThread(threadId); return; }
 
         const mode = params.get('mode');
+        if (mode === 'users') {
+            switchMode('users');
+            const q = params.get('q') || '';
+            document.getElementById('userSearchInput').value = q;
+            const sort = params.get('sort');
+            const order = params.get('order');
+            if (sort) document.getElementById('userSortBy').value = sort;
+            if (order) document.getElementById('userSortOrder').value = order;
+            ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'].forEach((key) => {
+                const map = {
+                    min_rep: 'userMinRep',
+                    max_rep: 'userMaxRep',
+                    min_posts: 'userMinPosts',
+                    max_posts: 'userMaxPosts',
+                    min_threads: 'userMinThreads',
+                    max_threads: 'userMaxThreads',
+                };
+                const val = params.get(key);
+                document.getElementById(map[key]).value = (val != null && val !== '') ? val : '';
+            });
+            userLastParams = {
+                q: document.getElementById('userSearchInput').value.trim(),
+                sort: document.getElementById('userSortBy').value,
+                order: document.getElementById('userSortOrder').value,
+                min_rep: optionalNumberInput('userMinRep'),
+                max_rep: optionalNumberInput('userMaxRep'),
+                min_posts: optionalNumberInput('userMinPosts'),
+                max_posts: optionalNumberInput('userMaxPosts'),
+                min_threads: optionalNumberInput('userMinThreads'),
+                max_threads: optionalNumberInput('userMaxThreads'),
+            };
+            suppressUrlUpdate = true;
+            runUserQuery(parseInt(params.get('offset') || '0', 10) || 0, true);
+            suppressUrlUpdate = false;
+            return;
+        }
+
         if (mode === 'fts') {
             switchMode('fts');
             const q = params.get('q') || '', author = params.get('uid') || '';
