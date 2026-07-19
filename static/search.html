@@ -2674,15 +2674,13 @@
         }
 
         const clearUrlParam = () => {
+            overlay.remove();
             const params = new URLSearchParams(window.location.search);
             if (params.has('id')) {
-                if (window.history.state === null && document.referrer === '') {
-                    window.location.href = window.location.origin + window.location.pathname;
-                } else {
-                    window.history.back();
-                }
-            } else {
-                overlay.remove();
+                params.delete('id');
+                const query = params.toString();
+                const url = window.location.pathname + (query ? '?' + query : '');
+                window.history.replaceState({}, '', url);
             }
         };
 
