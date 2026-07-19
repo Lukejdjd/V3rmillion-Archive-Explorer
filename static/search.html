@@ -790,12 +790,29 @@
         return Boolean((a && a.value) || (b && b.value));
     }
 
-    function showTurnstileChallenge(siteKey) {
+    function waitForTurnstile(timeoutMs = 8000) {
+        return new Promise((resolve, reject) => {
+            if (typeof turnstile !== 'undefined') return resolve();
+            const start = Date.now();
+            const timer = setInterval(() => {
+                if (typeof turnstile !== 'undefined') {
+                    clearInterval(timer);
+                    resolve();
+                } else if (Date.now() - start > timeoutMs) {
+                    clearInterval(timer);
+                    reject(new Error('Turnstile script failed to load'));
+                }
+            }, 50);
+        });
+    }
+
+    async function showTurnstileChallenge(siteKey) {
         _turnstileSiteKey = siteKey || _turnstileSiteKey;
         const overlay = document.getElementById('turnstile-overlay');
-        if (!_turnstileSiteKey || !overlay || typeof turnstile === 'undefined') {
-            return Promise.reject(new Error('Verification required. Please wait a minute and try again.'));
+        if (!_turnstileSiteKey || !overlay) {
+            throw new Error('Verification required. Please wait a minute and try again.');
         }
+        await waitForTurnstile();
         overlay.classList.add('visible');
         overlay.setAttribute('aria-hidden', 'false');
         return new Promise((resolve, reject) => {
@@ -807,6 +824,7 @@
             mount.innerHTML = '';
             _turnstileWidgetId = turnstile.render(mount, {
                 sitekey: _turnstileSiteKey,
+                theme: 'dark',
                 callback: (token) => {
                     _turnstileToken = token;
                     overlay.classList.remove('visible');
@@ -817,6 +835,9 @@
                 'error-callback': () => {
                     if (_turnstileReady) _turnstileReady.reject(new Error('Turnstile failed'));
                     _turnstileReady = null;
+                },
+                'expired-callback': () => {
+                    _turnstileToken = null;
                 },
             });
         });

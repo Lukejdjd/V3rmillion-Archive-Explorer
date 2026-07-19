@@ -98,6 +98,7 @@ class BotProtectionMiddleware(BaseHTTPMiddleware):
                 if TURNSTILE_SITE_KEY:
                     body["site_key"] = TURNSTILE_SITE_KEY
                 return JSONResponse(body, status_code=429)
+            limiter.mark_turnstile_passed(ip)
 
         response = await call_next(request)
         if response.status_code >= 400 and path.startswith("/api/"):

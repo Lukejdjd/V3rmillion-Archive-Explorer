@@ -19,6 +19,7 @@ from app.config import (
     READ_RATE_WINDOW,
     SEARCH_RATE_LIMIT,
     SEARCH_RATE_WINDOW,
+    TURNSTILE_GRACE_SECONDS,
     TURNSTILE_SECRET_KEY,
     TURNSTILE_SOFT_LIMIT,
 )
@@ -64,6 +65,7 @@ class RateLimiter:
         self._read: dict[str, Deque[float]] = defaultdict(deque)
         self._failed: dict[str, Deque[float]] = defaultdict(deque)
         self._blocked_until: dict[str, float] = {}
+        self._turnstile_ok_until: dict[str, float] = {}
 
     def _prune(self, bucket: Deque[float], window: float, now: float) -> None:
         while bucket and now - bucket[0] > window:
@@ -81,6 +83,12 @@ class RateLimiter:
     def mark_honeypot(self, ip: str) -> None:
         with self._lock:
             self._blocked_until[ip] = time.monotonic() + BLOCK_COOLDOWN_SECONDS
+            self._turnstile_ok_until.pop(ip, None)
+
+    def mark_turnstile_passed(self, ip: str, grace: int | None = None) -> None:
+        seconds = TURNSTILE_GRACE_SECONDS if grace is None else grace
+        with self._lock:
+            self._turnstile_ok_until[ip] = time.monotonic() + max(30, seconds)
 
     def check(self, ip: str, path: str) -> RateDecision:
         now = time.monotonic()
@@ -99,6 +107,7 @@ class RateLimiter:
                 bucket = self._search[ip]
                 self._prune(bucket, SEARCH_RATE_WINDOW, now)
                 count = len(bucket)
+                recently_verified = self._turnstile_ok_until.get(ip, 0.0) > now
 
                 if count >= BLOCK_HARD_LIMIT:
                     self._blocked_until[ip] = now + BLOCK_COOLDOWN_SECONDS
@@ -122,7 +131,11 @@ class RateLimiter:
                         search_count=count,
                     )
 
-                if turnstile_enabled and count >= TURNSTILE_SOFT_LIMIT:
+                if (
+                    turnstile_enabled
+                    and count >= TURNSTILE_SOFT_LIMIT
+                    and not recently_verified
+                ):
                     bucket.append(now)
                     return RateDecision(
                         allowed=True,

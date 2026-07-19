@@ -24,6 +24,9 @@ FAILED_REQUEST_WINDOW = int(os.environ.get("FAILED_REQUEST_WINDOW", "60"))
 TURNSTILE_SITE_KEY = os.environ.get("TURNSTILE_SITE_KEY", "").strip()
 TURNSTILE_SECRET_KEY = os.environ.get("TURNSTILE_SECRET_KEY", "").strip()
 TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+# After a successful challenge, skip re-prompting this IP for a while
+# (Turnstile tokens are single-use).
+TURNSTILE_GRACE_SECONDS = int(os.environ.get("TURNSTILE_GRACE_SECONDS", "600"))
 
 # In-memory response cache TTLs (seconds)
 CACHE_TTL_SEARCH = int(os.environ.get("CACHE_TTL_SEARCH", "60"))
