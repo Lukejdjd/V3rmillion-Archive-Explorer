@@ -450,9 +450,44 @@
             font-size: 0.72rem;
             line-height: 1.4;
         }
+        .hp-field {
+            position: absolute !important;
+            left: -10000px !important;
+            width: 1px !important;
+            height: 1px !important;
+            overflow: hidden !important;
+            opacity: 0 !important;
+            pointer-events: none !important;
+        }
+        #turnstile-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 20000;
+            background: rgba(0,0,0,0.72);
+            align-items: center;
+            justify-content: center;
+        }
+        #turnstile-overlay.visible { display: flex; }
+        #turnstile-box {
+            background: #121212;
+            border: 1px solid #333;
+            padding: 22px 26px;
+            border-radius: 6px;
+            text-align: center;
+            max-width: 360px;
+        }
+        #turnstile-box p { color: #aaa; margin-bottom: 14px; font-size: 0.9rem; }
     </style>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
+    <div id="turnstile-overlay" aria-hidden="true">
+        <div id="turnstile-box">
+            <p>Quick check before continuing searches…</p>
+            <div id="turnstile-widget"></div>
+        </div>
+    </div>
     <div id="loading-screen">
         <div class="loading-spinner"></div>
         <div id="loading-text" class="text-muted font-weight-bold">Connecting to archive...</div>
@@ -487,6 +522,7 @@
             <div class="row justify-content-center mb-2">
                 <div class="col-md-12">
                     <form action="#" class="search-toolbar" onsubmit="triggerIndexSearch(); return false;">
+                        <input type="text" name="website" id="hp-index" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
                         <div class="form-row index-filter-grid">
                             <div class="col-lg-2 col-md-6 mb-2">
                                 <label class="small font-weight-bold text-muted mb-1 d-block">Forum category</label>
@@ -595,6 +631,7 @@
         <!-- ══════════════════════════════════════════════════════════════════ -->
         <div id="panel-fts" style="display:none;">
             <form action="#" class="search-toolbar" onsubmit="triggerFtsSearch(); return false;">
+                <input type="text" name="website" id="hp-fts" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
                 <div class="form-row fts-filter-grid">
                     <div class="col-lg-4 col-md-12 mb-2 filter-keywords">
                         <label class="small font-weight-bold text-muted mb-1 d-block">Post Content Keywords</label>
@@ -709,6 +746,127 @@
     // User profile cache
     const _userProfileCache = new Map();
 
+    // Search result + in-flight request helpers
+    const _apiResultCache = new Map();
+    const _API_CACHE_TTL_MS = 60_000;
+    let _indexAbort = null;
+    let _ftsAbort = null;
+    let _indexDebounceTimer = null;
+    let _ftsDebounceTimer = null;
+    let _turnstileToken = null;
+    let _turnstileSiteKey = null;
+    let _turnstileWidgetId = null;
+    let _turnstileReady = null;
+
+    function debounce(fn, wait) {
+        let timer = null;
+        return function (...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), wait);
+        };
+    }
+
+    function cacheGet(key) {
+        const hit = _apiResultCache.get(key);
+        if (!hit) return null;
+        if (Date.now() > hit.expires) {
+            _apiResultCache.delete(key);
+            return null;
+        }
+        return hit.value;
+    }
+
+    function cacheSet(key, value) {
+        if (_apiResultCache.size > 128) {
+            const oldest = _apiResultCache.keys().next().value;
+            _apiResultCache.delete(oldest);
+        }
+        _apiResultCache.set(key, { value, expires: Date.now() + _API_CACHE_TTL_MS });
+    }
+
+    function honeypotFilled() {
+        const a = document.getElementById('hp-index');
+        const b = document.getElementById('hp-fts');
+        return Boolean((a && a.value) || (b && b.value));
+    }
+
+    function showTurnstileChallenge(siteKey) {
+        _turnstileSiteKey = siteKey || _turnstileSiteKey;
+        const overlay = document.getElementById('turnstile-overlay');
+        if (!_turnstileSiteKey || !overlay || typeof turnstile === 'undefined') {
+            return Promise.reject(new Error('Verification required. Please wait a minute and try again.'));
+        }
+        overlay.classList.add('visible');
+        overlay.setAttribute('aria-hidden', 'false');
+        return new Promise((resolve, reject) => {
+            _turnstileReady = { resolve, reject };
+            const mount = document.getElementById('turnstile-widget');
+            try {
+                if (_turnstileWidgetId != null) turnstile.remove(_turnstileWidgetId);
+            } catch (_) {}
+            mount.innerHTML = '';
+            _turnstileWidgetId = turnstile.render(mount, {
+                sitekey: _turnstileSiteKey,
+                callback: (token) => {
+                    _turnstileToken = token;
+                    overlay.classList.remove('visible');
+                    overlay.setAttribute('aria-hidden', 'true');
+                    if (_turnstileReady) _turnstileReady.resolve(token);
+                    _turnstileReady = null;
+                },
+                'error-callback': () => {
+                    if (_turnstileReady) _turnstileReady.reject(new Error('Turnstile failed'));
+                    _turnstileReady = null;
+                },
+            });
+        });
+    }
+
+    async function apiFetch(url, options = {}) {
+        if (honeypotFilled()) {
+            throw new Error('Request blocked');
+        }
+        const cacheKey = options.method && options.method !== 'GET' ? null : url;
+        if (cacheKey && !options.bypassCache) {
+            const cached = cacheGet(cacheKey);
+            if (cached) return { ok: true, status: 200, json: async () => cached, _fromCache: true };
+        }
+
+        const headers = Object.assign({}, options.headers || {});
+        if (_turnstileToken) headers['cf-turnstile-response'] = _turnstileToken;
+        if (honeypotFilled()) {
+            const sep = url.includes('?') ? '&' : '?';
+            url = `${url}${sep}website=1`;
+        }
+
+        const res = await fetch(url, { ...options, headers });
+        if (res.status === 429) {
+            let body = {};
+            try { body = await res.clone().json(); } catch (_) {}
+            if (body.turnstile || body.error === 'turnstile_required') {
+                await showTurnstileChallenge(body.site_key);
+                headers['cf-turnstile-response'] = _turnstileToken;
+                const retry = await fetch(url, { ...options, headers });
+                if (!retry.ok) throw new Error(`HTTP ${retry.status}`);
+                const data = await retry.json();
+                if (cacheKey) cacheSet(cacheKey, data);
+                return {
+                    ok: true,
+                    status: retry.status,
+                    json: async () => data,
+                };
+            }
+            const retryAfter = res.headers.get('Retry-After') || '60';
+            throw new Error(`Too many requests. Try again in ${retryAfter}s.`);
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        if (cacheKey) {
+            const data = await res.clone().json();
+            cacheSet(cacheKey, data);
+        }
+        return res;
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // MODE SWITCHING
     // ════════════════════════════════════════════════════════════════════════
@@ -790,8 +948,7 @@
         try {
             const params = new URLSearchParams({ thread_id: threadId, limit: 50, offset: 0 });
             if (jumpToPostId) params.set('post_id', jumpToPostId);
-            const res  = await fetch(`/api/thread?${params}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const res  = await apiFetch(`/api/thread?${params}`);
             const data = await res.json();
             if (data.error) throw new Error(data.error);
             showThreadViewerModal(data, threadId, jumpToPostId);
@@ -830,8 +987,7 @@
             if (_userProfileCache.has(uid)) {
                 profile = _userProfileCache.get(uid);
             } else {
-                const res = await fetch(`/api/user?uid=${encodeURIComponent(uid)}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const res = await apiFetch(`/api/user?uid=${encodeURIComponent(uid)}`);
                 const data = await res.json();
                 if (data.error) throw new Error(data.error);
                 profile = data.user;
@@ -1004,10 +1160,12 @@
             else                       params.set('q', q);              // title FTS
         }
 
+        if (_indexAbort) _indexAbort.abort();
+        _indexAbort = new AbortController();
+
         const t0 = performance.now();
         try {
-            const res  = await fetch(`/api/search_threads?${params}`);
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const res  = await apiFetch(`/api/search_threads?${params}`, { signal: _indexAbort.signal });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
@@ -1034,6 +1192,7 @@
             renderIndexPagination(offset, total);
 
         } catch (err) {
+            if (err.name === 'AbortError') return;
             container.innerHTML = `<div class="col-12"><p class="text-center text-danger my-4">Search error: ${escapeHTML(err.message)}</p></div>`;
         }
     }
@@ -1174,13 +1333,12 @@
             if (endTs)   p.set('end_ts', endTs);
             url = `/api/search_posts?${p}`;
         }
-        console.debug('[fts] requesting', { url, ftsCurrentUid, ftsLastParams, currentOpOnly });
+        if (_ftsAbort) _ftsAbort.abort();
+        _ftsAbort = new AbortController();
 
         const t0 = performance.now();
         try {
-            const res  = await fetch(url);
-            console.debug('[fts] response', { url, ok: res.ok, status: res.status });
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const res  = await apiFetch(url, { signal: _ftsAbort.signal });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
 
@@ -1206,6 +1364,7 @@
             document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
 
         } catch (err) {
+            if (err.name === 'AbortError') return;
             container.innerHTML = `<p style="color:#cd1818;text-align:center;padding:20px;">Search error: ${escapeHTML(err.message)}</p>`;
         }
     }
@@ -1272,15 +1431,31 @@
             else                   { lbl.innerText = 'Keywords'; inp.placeholder = 'Type keywords here...'; }
         });
 
+        const debouncedIndex = debounce(() => {
+            if (currentMode === 'index') triggerIndexSearch();
+        }, 400);
+        const debouncedFts = debounce(() => {
+            if (currentMode === 'fts') triggerFtsSearch();
+        }, 450);
+        document.getElementById('searchInput').addEventListener('input', debouncedIndex);
+        document.getElementById('ftsInput').addEventListener('input', debouncedFts);
+        document.getElementById('ftsAuthor').addEventListener('input', debouncedFts);
+
         try {
             // Quick ping to /api/titles to verify backend is up and get thread count
-            const res = await fetch('/api/titles');
-            if (!res.ok) throw new Error(`Backend returned HTTP ${res.status}`);
+            const res = await apiFetch('/api/titles');
             const data = await res.json();
             const count = data.thread_count || '?';
             statusText.innerHTML = `Archive online. Threads indexed: ${Number(count).toLocaleString()}`;
             content.style.display = 'block';
             loadingScreen.style.display = 'none';
+            try {
+                const cfgRes = await fetch('/api/config');
+                if (cfgRes.ok) {
+                    const cfg = await cfgRes.json();
+                    if (cfg.turnstile_site_key) _turnstileSiteKey = cfg.turnstile_site_key;
+                }
+            } catch (_) {}
             checkDeepLinkingParameter();
         } catch (err) {
             loadingText.innerHTML = `<span class="text-danger">Failed to connect to archive backend.<br>${err.message}</span>`;
@@ -1982,8 +2157,7 @@
             if (!pageCache.has(page)) {
                 const offset = (page - 1) * POSTS_PER_PAGE;
                 const params = new URLSearchParams({ thread_id: id, limit: POSTS_PER_PAGE, offset });
-                const res = await fetch(`/api/thread?${params}`);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const res = await apiFetch(`/api/thread?${params}`);
                 const pageData = await res.json();
                 if (pageData.error) throw new Error(pageData.error);
                 pageCache.set(page, pageData.posts || []);
