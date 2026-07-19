@@ -29,8 +29,8 @@ Combined size:
 Single-VM deployment:
 
 ```text
-Visitor -> Cloudflare DNS/proxy -> Oracle VM -> Caddy -> Docker app
-                                                       |-> local SQLite databases
+Visitor -> Cloudflare DNS/proxy -> Oracle VM -> Caddy (HTTPS) -> FastAPI/Uvicorn
+                                                       |-> local SQLite FTS databases
                                                        `-> Iframely
 
 GitHub Release -> versioned .zst snapshot -> Oracle VM
@@ -41,13 +41,17 @@ Split deployment with static assets on Cloudflare Pages:
 ```text
 Visitor -> Cloudflare Pages -> static HTML/CSS/JavaScript
                     |
-                    `-> Pages Function -> api.example.com -> Oracle VM
+                    `-> Pages Function -> api.example.com -> Caddy -> FastAPI
 
-Oracle VM -> Python API -> local SQLite databases
-          `-> Iframely
+Oracle VM -> FastAPI (Uvicorn workers) -> local SQLite FTS databases
+          `-> Iframely (optional)
 
 GitHub Release -> users.db.zst, threads.db.zst, SHA256SUMS
 ```
+
+Target on Always Free (2 OCPU / 12 GB): hundreds of thousands of requests/day
+with rate limits, pagination, and response caching. Scrapers and uncached heavy
+searches are the main risk — not normal browsing.
 
 ## Run locally with Docker
 
@@ -112,21 +116,17 @@ docker compose down
 
 ## Run locally with Python
 
-Python 3.12 or newer is recommended.
-
-By default, `main.py` starts the Iframely Docker service and then starts the web server:
+The API runs on FastAPI + Uvicorn. Install runtime dependencies first:
 
 ```bash
-python main.py
+python -m venv .venv
 ```
-
-Open <http://localhost:8000/static/search.html>.
-
-To run without Docker/Iframely:
 
 PowerShell:
 
 ```powershell
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
 $env:MANAGE_IFRAMELY = "0"
 python main.py
 ```
@@ -134,10 +134,18 @@ python main.py
 Linux/macOS:
 
 ```bash
+. .venv/bin/activate
+pip install -r requirements.txt
 MANAGE_IFRAMELY=0 python main.py
 ```
 
+Or run Uvicorn directly:
 
+```bash
+WEB_CONCURRENCY=2 uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Open <http://localhost:8000/static/search.html>.
 
 Supported server environment variables:
 
@@ -145,9 +153,16 @@ Supported server environment variables:
 |---|---|---|
 | `HOST` | `localhost` | Bind address; Docker uses `0.0.0.0` |
 | `PORT` | `8000` | HTTP port |
+| `WEB_CONCURRENCY` | `2` | Uvicorn worker processes |
 | `ARCHIVE_DATA_DIR` | `./data` | Directory containing both SQLite files |
 | `MANAGE_IFRAMELY` | `1` | Start/stop Iframely through Docker Compose |
 | `IFRAMELY_BACKEND` | `http://localhost:8061` | Iframely service URL |
+| `SEARCH_RATE_LIMIT` | `10` | Searches/minute/IP without Turnstile |
+| `READ_RATE_LIMIT` | `60` | Thread/profile reads/minute/IP |
+| `TURNSTILE_SOFT_LIMIT` | `30` | Searches/minute before Turnstile challenge |
+| `BLOCK_HARD_LIMIT` | `100` | Searches/minute before temporary IP block |
+| `TURNSTILE_SITE_KEY` | _(empty)_ | Cloudflare Turnstile site key |
+| `TURNSTILE_SECRET_KEY` | _(empty)_ | Cloudflare Turnstile secret (never commit) |
 
 ## Rebuild the databases from source archives
 
@@ -179,9 +194,10 @@ Run users first. Expect parsing to take a while.
 
 ## Create release downloads
 
-Always compress only after parsing, FTS rebuilding, and `VACUUM` have completed.
+Always compress only after parsing, FTS rebuilding, index optimization, and `VACUUM` have completed.
 
 ```bash
+python scripts/optimize_indexes.py
 mkdir -p data/downloads
 zstd -15 -T0 -f -o data/downloads/users.db.zst -- data/users.db
 zstd -15 -T0 -f -o data/downloads/threads.db.zst -- data/threads.db
@@ -261,7 +277,16 @@ docker compose -f docker-compose.yml -f compose.prod.yml --profile embeds up -d 
 docker compose -f docker-compose.yml -f compose.prod.yml ps
 ```
 
-Caddy handles ports 80/443, obtains TLS certificates, and proxies requests to the archive container.
+Caddy handles ports 80/443, obtains and renews TLS certificates automatically, and reverse-proxies to FastAPI (bound to localhost only). See `deploy/oracle-hardening.md` for firewall, SSH keys, backups, and secrets.
+
+Optional monitoring (localhost only — SSH tunnel or Cloudflare Tunnel):
+
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
+```
+
+- Netdata: <http://127.0.0.1:19999>
+- Uptime Kuma: <http://127.0.0.1:3001>
 
 ### 4. Configure Cloudflare DNS
 
@@ -295,7 +320,17 @@ Enable the Cloudflare proxy after the origin responds. Set SSL/TLS mode to **Ful
    API_ORIGIN=https://api.example.com
    ```
 
-6. Deploy and attach the public hostname, for example `archive.example.com`.
+6. Optional bot protection: create a Cloudflare Turnstile widget, then set
+   `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET_KEY` in the Oracle `.env` and
+   redeploy the API. Challenges only appear for high search rates.
+
+7. Deploy and attach the public hostname, for example `archive.example.com`.
+
+After rebuilding databases from source, run index optimization before packaging:
+
+```bash
+python scripts/optimize_indexes.py
+```
 
 The Pages Functions are:
 
