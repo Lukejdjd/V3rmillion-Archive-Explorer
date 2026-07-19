@@ -777,9 +777,10 @@
     // User profile cache
     const _userProfileCache = new Map();
 
-    // Search result + in-flight request helpers
+    // Search result + in-flight request helpers (memory + sessionStorage for deep-link refresh)
     const _apiResultCache = new Map();
     const _API_CACHE_TTL_MS = 60_000;
+    const _SESSION_CACHE_PREFIX = 'apicache:v1:';
     let _indexAbort = null;
     let _ftsAbort = null;
     let _turnstileToken = null;
@@ -808,20 +809,43 @@
 
     function cacheGet(key) {
         const hit = _apiResultCache.get(key);
-        if (!hit) return null;
-        if (Date.now() > hit.expires) {
-            _apiResultCache.delete(key);
+        if (hit) {
+            if (Date.now() > hit.expires) {
+                _apiResultCache.delete(key);
+            } else {
+                return hit.value;
+            }
+        }
+        try {
+            const raw = sessionStorage.getItem(_SESSION_CACHE_PREFIX + key);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (!parsed || Date.now() > parsed.expires) {
+                sessionStorage.removeItem(_SESSION_CACHE_PREFIX + key);
+                return null;
+            }
+            _apiResultCache.set(key, { value: parsed.value, expires: parsed.expires });
+            return parsed.value;
+        } catch (_) {
             return null;
         }
-        return hit.value;
     }
 
     function cacheSet(key, value) {
+        const expires = Date.now() + _API_CACHE_TTL_MS;
         if (_apiResultCache.size > 128) {
             const oldest = _apiResultCache.keys().next().value;
             _apiResultCache.delete(oldest);
         }
-        _apiResultCache.set(key, { value, expires: Date.now() + _API_CACHE_TTL_MS });
+        _apiResultCache.set(key, { value, expires });
+        try {
+            sessionStorage.setItem(
+                _SESSION_CACHE_PREFIX + key,
+                JSON.stringify({ value, expires })
+            );
+        } catch (_) {
+            // Quota / private mode: memory cache still works for this page load.
+        }
     }
 
     function honeypotFilled() {
@@ -1214,6 +1238,27 @@
         runIndexQuery(0, true);
     }
 
+    function renderIndexResults(data, offset, elapsedMs) {
+        const container = document.getElementById('results');
+        const rows  = data.results || [];
+        const total = data.total   ?? rows.length;
+        indexTotal  = total;
+        indexOffset = offset;
+        container.innerHTML = '';
+
+        if (!rows.length && offset === 0) {
+            container.innerHTML = `<div class="col-12"><p class="text-center text-muted my-4">No results found matching those parameters.</p></div>`;
+            return;
+        }
+
+        rows.forEach(thread => container.appendChild(buildIndexCard(thread)));
+        const metricsEl = document.getElementById('index-metrics');
+        const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
+        metricsEl.textContent = `${total.toLocaleString()} thread${total === 1 ? '' : 's'} found${timing}`;
+        metricsEl.style.display = 'flex';
+        renderIndexPagination(offset, total);
+    }
+
     async function runIndexQuery(offset, replace = false) {
         const container = document.getElementById('results');
         if (replace) {
@@ -1233,37 +1278,22 @@
             else                       params.set('q', q);              // title FTS
         }
 
+        const url = `/api/search_threads?${params}`;
+        const cached = cacheGet(url);
+        if (cached) {
+            renderIndexResults(cached, offset, null);
+            return;
+        }
+
         if (_indexAbort) _indexAbort.abort();
         _indexAbort = new AbortController();
 
         const t0 = performance.now();
         try {
-            const res  = await apiFetch(`/api/search_threads?${params}`, { signal: _indexAbort.signal });
+            const res  = await apiFetch(url, { signal: _indexAbort.signal });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-
-            const rows  = data.results || [];
-            const total = data.total   ?? rows.length;
-            const elapsedMs = performance.now() - t0;
-            indexTotal  = total;
-            indexOffset = offset;
-
-            if (replace) container.innerHTML = '';
-
-            if (!rows.length && offset === 0) {
-                container.innerHTML = `<div class="col-12"><p class="text-center text-muted my-4">No results found matching those parameters.</p></div>`;
-                return;
-            }
-
-            rows.forEach(thread => container.appendChild(buildIndexCard(thread)));
-
-            // Metrics
-            const metricsEl = document.getElementById('index-metrics');
-            metricsEl.textContent = `${total.toLocaleString()} thread${total === 1 ? '' : 's'} found (${formatDuration(elapsedMs)})`;
-            metricsEl.style.display = 'flex';
-
-            renderIndexPagination(offset, total);
-
+            renderIndexResults(data, offset, performance.now() - t0);
         } catch (err) {
             if (err.name === 'AbortError') return;
             container.innerHTML = `<div class="col-12"><p class="text-center text-danger my-4">Search error: ${escapeHTML(err.message)}</p></div>`;
@@ -1406,6 +1436,31 @@
             if (endTs)   p.set('end_ts', endTs);
             url = `/api/search_posts?${p}`;
         }
+
+        const applyFtsRows = (data, elapsedMs) => {
+            const rows = data.results || data.posts || [];
+            if (replace) container.innerHTML = '';
+            if (rows.length === 0 && ftsOffset === 0) {
+                container.innerHTML = `<p style="color:#555;text-align:center;padding:20px;">${currentOpOnly === '1' ? 'No thread starters found.' : 'No posts found.'}</p>`;
+                return;
+            }
+            ftsTotalShown += rows.length;
+            ftsOffset     += rows.length;
+            ftsExhausted   = rows.length < FTS_PAGE_SIZE;
+            rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
+            const metricsEl = document.getElementById('fts-metrics');
+            const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
+            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown${timing}`;
+            metricsEl.style.display = 'flex';
+            document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
+        };
+
+        const cached = cacheGet(url);
+        if (cached) {
+            applyFtsRows(cached, null);
+            return;
+        }
+
         if (_ftsAbort) _ftsAbort.abort();
         _ftsAbort = new AbortController();
 
@@ -1414,28 +1469,7 @@
             const res  = await apiFetch(url, { signal: _ftsAbort.signal });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-
-            const rows = data.results || data.posts || [];
-            const elapsedMs = performance.now() - t0;
-
-            if (replace) container.innerHTML = '';
-
-            if (rows.length === 0 && ftsOffset === 0) {
-                container.innerHTML = `<p style="color:#555;text-align:center;padding:20px;">${currentOpOnly === '1' ? 'No thread starters found.' : 'No posts found.'}</p>`;
-                return;
-            }
-
-            ftsTotalShown += rows.length;
-            ftsOffset     += rows.length;
-            ftsExhausted   = rows.length < FTS_PAGE_SIZE;
-
-            rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
-
-            const metricsEl = document.getElementById('fts-metrics');
-            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown (${formatDuration(elapsedMs)})`;
-            metricsEl.style.display = 'flex';
-            document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
-
+            applyFtsRows(data, performance.now() - t0);
         } catch (err) {
             if (err.name === 'AbortError') return;
             container.innerHTML = `<p style="color:#cd1818;text-align:center;padding:20px;">Search error: ${escapeHTML(err.message)}</p>`;
@@ -1530,24 +1564,11 @@
     // ════════════════════════════════════════════════════════════════════════
     // DEEP LINKING
     // ════════════════════════════════════════════════════════════════════════
-    function shouldAutoRunDeepLinkSearch(kind) {
-        // Spam-refreshing ?q=... links should not re-hit search APIs every reload.
-        const key = `deeplink:${kind}:${window.location.search}`;
-        try {
-            const prev = Number(sessionStorage.getItem(key) || '0');
-            if (prev && (Date.now() - prev) < 60_000) return false;
-            sessionStorage.setItem(key, String(Date.now()));
-        } catch (_) {}
-        return true;
-    }
-
     function checkDeepLinkingParameter() {
         const urlParams = new URLSearchParams(window.location.search);
         const targetThreadId = urlParams.get('id');
         if (targetThreadId) {
-            if (shouldAutoRunDeepLinkSearch('thread')) {
-                fetchAndRenderThread(targetThreadId);
-            }
+            fetchAndRenderThread(targetThreadId);
             return;
         }
 
@@ -1558,7 +1579,7 @@
             const author = urlParams.get('uid') || '';
             if (q)      document.getElementById('ftsInput').value  = q;
             if (author) document.getElementById('ftsAuthor').value = author;
-            if ((q || author) && shouldAutoRunDeepLinkSearch('fts')) {
+            if (q || author) {
                 suppressUrlUpdate = true;
                 triggerFtsSearch();
                 suppressUrlUpdate = false;
@@ -1583,11 +1604,9 @@
 
         if (cat || query || sort !== 'relevance' || order !== 'asc') {
             indexLastParams = { q: query, cat, smode, sort, order };
-            if (shouldAutoRunDeepLinkSearch('index')) {
-                suppressUrlUpdate = true;
-                runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
-                suppressUrlUpdate = false;
-            }
+            suppressUrlUpdate = true;
+            runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
+            suppressUrlUpdate = false;
         }
     }
 
