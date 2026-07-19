@@ -1176,9 +1176,9 @@
         const timeOnline  = p.time_online || '';
         const altsRaw     = p.alts;
 
+        let altsHTML;
         let alts = altsRaw;
         try { alts = JSON.parse(altsRaw); } catch(e) {}
-
         if (!alts || (Array.isArray(alts) && alts.length === 0) || String(alts).trim() === '' || String(alts).trim() === '[]') {
             altsHTML = row('Known Alts', 'None');
         } else if (Array.isArray(alts)) {
@@ -1212,8 +1212,38 @@
             ? `<div class="user-stat-row">
                 <span class="user-stat-label">Reputation</span>
                 <span class="user-stat-value"><strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong></span>
-               </div>`
+            </div>`
             : '';
+
+        // Username history
+        let pastRaw = p.past_usernames || [];
+        if (typeof pastRaw === 'string') {
+            try { pastRaw = JSON.parse(pastRaw); } catch { pastRaw = []; }
+        }
+        if (!Array.isArray(pastRaw)) pastRaw = [];
+
+        const allNames = [];
+        pastRaw.forEach((x, i) => {
+            const n = (x && x.username) || x;
+            const end = x && x.date_changed ? x.date_changed : '?';
+            const start = i === 0 ? (joinDate || 'unknown') : (pastRaw[i-1].date_changed || '?');
+            allNames.push({ name: n, start, end });
+        });
+        if (pastRaw.length > 0) {
+            const lastEnd = pastRaw[pastRaw.length - 1].date_changed || '?';
+            allNames.push({ name: username, start: lastEnd, end: 'present' });
+        }
+
+        const historyHTML = `<div class="user-stat-row">
+            <span class="user-stat-label">Username History</span>
+            <span class="user-stat-value" style="flex:1;">
+                ${allNames.length ? allNames.map(u => `
+                    <div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #1a1a1a;">
+                        <span style="color:#aaa;">${escapeHTML(String(u.name))}</span>
+                        <span style="color:#555;font-size:0.72rem;white-space:nowrap;">${escapeHTML(String(u.start))} → ${escapeHTML(String(u.end))}</span>
+                    </div>`).join('') : '<span style="color:#444;font-style:italic;">none</span>'}
+            </span>
+        </div>`;
 
         const searchLink = `<a href="#" class="user-search-posts-link" data-uid="${escapeHTML(String(uid_val))}" data-username="${escapeHTML(username)}" style="color:#cd1818;font-size:0.75rem;margin-left:8px;">[Search Posts]</a>`;
 
@@ -1230,14 +1260,14 @@
             ${row('Post Count', postCount)}
             ${row('Thread Count', threadCount)}
             ${row('Joined', joinDate)}
+            ${historyHTML}
             ${row('Last Visit', lastVisit)}
             ${row('Time Online', timeOnline)}
             ${altsHTML}
             ${awardsHTML}
         `;
-
     }
-
+    
     function searchByUser(uid, username) {
         console.debug('[profile search posts] searchByUser called', { uid, username });
         document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
@@ -1647,47 +1677,11 @@
         const uid = String(user.user_id || '');
         const name = user.username || 'Unknown';
         const title = user.user_title || user.user_rank || '';
-        const posts = user.post_count;
+        const posts = user.post_count || user.posts;
         const threads = user.thread_count;
         const rep = user.reputation;
         const joined = user.joined || '';
-        const pastRaw = Array.isArray(user.past_usernames) ? user.past_usernames : [];
-        const allNames = [];
         
-        // Build chained ranges
-        pastRaw.forEach((x, i) => {
-            const name = (x && x.username) || x;
-            const end = x && x.date_changed ? x.date_changed : null;
-            const start = i === 0 ? (joined || 'unknown') : (pastRaw[i-1].date_changed || '?');
-            allNames.push({ name, start, end });
-        });
-        
-        // Add current username
-        if (pastRaw.length > 0) {
-            const lastEnd = pastRaw[pastRaw.length - 1].date_changed || '?';
-            allNames.push({ name, start: lastEnd, end: 'present' });
-        }
-        
-        const pastUID = `past-${uid}`;
-        const pastHTML = allNames.length ? `
-        <div style="font-size:0.72rem;color:#666;margin-bottom:6px;">
-            <span style="cursor:pointer;user-select:none;" onclick="
-                var el=document.getElementById('${pastUID}');
-                var btn=document.getElementById('${pastUID}-btn');
-                if(el.style.display==='none'){el.style.display='block';btn.textContent='Username History ▴';}
-                else{el.style.display='none';btn.textContent='Username History ▾';}
-            ">
-                <span id="${pastUID}-btn" style="color:#cd1818;font-weight:600;">Username History ▾</span>
-            </span>
-            <div id="${pastUID}" style="display:none;margin-top:6px;border-left:2px solid #2a2a2a;padding-left:8px;">
-                ${allNames.map(u => `
-                    <div style="display:flex;justify-content:space-between;gap:12px;padding:2px 0;border-bottom:1px solid #1a1a1a;">
-                        <span style="color:#aaa;">${escapeHTML(String(u.name))}</span>
-                        <span style="color:#3a3a3a;font-size:0.68rem;white-space:nowrap;">${escapeHTML(String(u.start))} → ${escapeHTML(String(u.end))}</span>
-                    </div>`).join('')}
-            </div>
-        </div>` : `<div style="font-size:0.72rem;color:#666;margin-bottom:6px;">Username History: <span style="color:#444;font-style:italic;">none</span></div>`;
-
         const pills = [];
         if (posts != null && posts !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-comment-o"></i>${Number(posts).toLocaleString()} posts</span>`);
         if (threads != null && threads !== '') pills.push(`<span class="card-meta-pill"><i class="fa fa-list"></i>${Number(threads).toLocaleString()} threads</span>`);
@@ -1702,7 +1696,6 @@
                 </div>
                 <h5 class="card-title mb-1" style="color:#cd1818;">${escapeHTML(name)}</h5>
                 ${title ? `<div class="card-author-line" style="margin-bottom:6px;">${escapeHTML(title)}</div>` : ''}
-                ${pastHTML}
                 ${pills.length ? `<div class="card-meta-row">${pills.join('')}</div>` : ''}
                 <button class="btn btn-danger btn-sm mt-auto view-json-btn font-weight-bold">View Profile</button>
               </div>
