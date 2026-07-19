@@ -761,30 +761,6 @@
                             <option value="asc">Ascending</option>
                         </select>
                     </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Min reputation</label>
-                        <input type="number" id="userMinRep" class="form-control" placeholder="any">
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Max reputation</label>
-                        <input type="number" id="userMaxRep" class="form-control" placeholder="any">
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Min posts</label>
-                        <input type="number" id="userMinPosts" class="form-control" placeholder="any">
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Max posts</label>
-                        <input type="number" id="userMaxPosts" class="form-control" placeholder="any">
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Min threads</label>
-                        <input type="number" id="userMinThreads" class="form-control" placeholder="any">
-                    </div>
-                    <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;">
-                        <label class="small font-weight-bold text-muted mb-1 d-block">Max threads</label>
-                        <input type="number" id="userMaxThreads" class="form-control" placeholder="any">
-                    </div>
                     <div class="col-lg-2 col-md-3 mb-2" style="padding:0 6px;display:flex;align-items:flex-end;">
                         <button type="submit" class="btn btn-danger btn-block font-weight-bold" style="width:100%;height:calc(1.5em + .75rem + 2px);">Search Users</button>
                     </div>
@@ -1559,13 +1535,6 @@
     // ════════════════════════════════════════════════════════════════════════
     // USER SEARCH
     // ════════════════════════════════════════════════════════════════════════
-    function optionalNumberInput(id) {
-        const raw = (document.getElementById(id).value || '').trim();
-        if (!raw) return '';
-        const n = Number(raw);
-        return Number.isFinite(n) ? String(n) : '';
-    }
-
     function updateUserUrl(offset = userOffset, replace = false) {
         if (!userLastParams) return;
         const p = userLastParams;
@@ -1574,12 +1543,6 @@
             q: p.q,
             sort: p.sort && p.sort !== 'username' ? p.sort : '',
             order: p.order && p.order !== 'desc' ? p.order : '',
-            min_rep: p.min_rep,
-            max_rep: p.max_rep,
-            min_posts: p.min_posts,
-            max_posts: p.max_posts,
-            min_threads: p.min_threads,
-            max_threads: p.max_threads,
             offset: offset || ''
         }, replace);
     }
@@ -1595,12 +1558,6 @@
             q: document.getElementById('userSearchInput').value.trim(),
             sort: document.getElementById('userSortBy').value,
             order: document.getElementById('userSortOrder').value,
-            min_rep: optionalNumberInput('userMinRep'),
-            max_rep: optionalNumberInput('userMaxRep'),
-            min_posts: optionalNumberInput('userMinPosts'),
-            max_posts: optionalNumberInput('userMaxPosts'),
-            min_threads: optionalNumberInput('userMinThreads'),
-            max_threads: optionalNumberInput('userMaxThreads'),
         };
         if (!suppressUrlUpdate) updateUserUrl(0);
         runUserQuery(0, true);
@@ -1642,12 +1599,6 @@
             limit: USER_PAGE_SIZE,
         });
         if (p.q) params.set('q', p.q);
-        if (p.min_rep !== '') params.set('min_rep', p.min_rep);
-        if (p.max_rep !== '') params.set('max_rep', p.max_rep);
-        if (p.min_posts !== '') params.set('min_posts', p.min_posts);
-        if (p.max_posts !== '') params.set('max_posts', p.max_posts);
-        if (p.min_threads !== '') params.set('min_threads', p.min_threads);
-        if (p.max_threads !== '') params.set('max_threads', p.max_threads);
 
         const url = `/api/search_users?${params}`;
         const cached = cacheGet(url);
@@ -1852,20 +1803,7 @@
             const order = urlParams.get('order');
             if (sort) document.getElementById('userSortBy').value = sort;
             if (order) document.getElementById('userSortOrder').value = order;
-            ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'].forEach((key) => {
-                const map = {
-                    min_rep: 'userMinRep',
-                    max_rep: 'userMaxRep',
-                    min_posts: 'userMinPosts',
-                    max_posts: 'userMaxPosts',
-                    min_threads: 'userMinThreads',
-                    max_threads: 'userMaxThreads',
-                };
-                const val = urlParams.get(key);
-                if (val != null && val !== '') document.getElementById(map[key]).value = val;
-            });
-            const filterKeys = ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'];
-            const hasFilters = Boolean(q || sort || order || filterKeys.some((k) => urlParams.get(k)));
+            const hasFilters = Boolean(q || sort || order);
             const off = parseInt(urlParams.get('offset') || '0', 10) || 0;
             if (hasFilters || off > 0) {
                 suppressUrlUpdate = true;
@@ -1873,12 +1811,6 @@
                     q: document.getElementById('userSearchInput').value.trim(),
                     sort: document.getElementById('userSortBy').value,
                     order: document.getElementById('userSortOrder').value,
-                    min_rep: optionalNumberInput('userMinRep'),
-                    max_rep: optionalNumberInput('userMaxRep'),
-                    min_posts: optionalNumberInput('userMinPosts'),
-                    max_posts: optionalNumberInput('userMaxPosts'),
-                    min_threads: optionalNumberInput('userMinThreads'),
-                    max_threads: optionalNumberInput('userMaxThreads'),
                 };
                 runUserQuery(off, true);
                 suppressUrlUpdate = false;
@@ -2716,28 +2648,10 @@
             const order = params.get('order');
             if (sort) document.getElementById('userSortBy').value = sort;
             if (order) document.getElementById('userSortOrder').value = order;
-            ['min_rep','max_rep','min_posts','max_posts','min_threads','max_threads'].forEach((key) => {
-                const map = {
-                    min_rep: 'userMinRep',
-                    max_rep: 'userMaxRep',
-                    min_posts: 'userMinPosts',
-                    max_posts: 'userMaxPosts',
-                    min_threads: 'userMinThreads',
-                    max_threads: 'userMaxThreads',
-                };
-                const val = params.get(key);
-                document.getElementById(map[key]).value = (val != null && val !== '') ? val : '';
-            });
             userLastParams = {
                 q: document.getElementById('userSearchInput').value.trim(),
                 sort: document.getElementById('userSortBy').value,
                 order: document.getElementById('userSortOrder').value,
-                min_rep: optionalNumberInput('userMinRep'),
-                max_rep: optionalNumberInput('userMaxRep'),
-                min_posts: optionalNumberInput('userMinPosts'),
-                max_posts: optionalNumberInput('userMaxPosts'),
-                min_threads: optionalNumberInput('userMinThreads'),
-                max_threads: optionalNumberInput('userMaxThreads'),
             };
             suppressUrlUpdate = true;
             runUserQuery(parseInt(params.get('offset') || '0', 10) || 0, true);
