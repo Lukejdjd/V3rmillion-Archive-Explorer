@@ -478,13 +478,44 @@
             max-width: 360px;
         }
         #turnstile-box p { color: #aaa; margin-bottom: 14px; font-size: 0.9rem; }
+        #rate-limit-banner {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 19000;
+            padding: 10px 16px;
+            text-align: center;
+            font: 600 0.9rem 'Rajdhani','Open Sans',sans-serif;
+            letter-spacing: 0.03em;
+            color: #ffd7d7;
+            background: linear-gradient(180deg, #5a1010 0%, #3a0a0a 100%);
+            border-bottom: 1px solid #8a1a1a;
+            box-shadow: 0 4px 18px rgba(0,0,0,0.45);
+        }
+        #rate-limit-banner.visible { display: block; }
+        #rate-limit-banner .rl-close {
+            margin-left: 12px;
+            background: transparent;
+            border: 1px solid #8a3a3a;
+            color: #ffb0b0;
+            border-radius: 3px;
+            padding: 1px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
     </style>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
+    <div id="rate-limit-banner" role="status" aria-live="polite">
+        <span id="rate-limit-banner-text"></span>
+        <button type="button" class="rl-close" id="rate-limit-banner-close" aria-label="Dismiss">Dismiss</button>
+    </div>
     <div id="turnstile-overlay" aria-hidden="true">
         <div id="turnstile-box">
-            <p>Quick check before continuing searches…</p>
+            <p id="turnstile-overlay-text">You're searching too quickly. Complete this check to continue.</p>
             <div id="turnstile-widget"></div>
         </div>
     </div>
@@ -757,6 +788,25 @@
     let _turnstileSiteKey = null;
     let _turnstileWidgetId = null;
     let _turnstileReady = null;
+    let _rateLimitHideTimer = null;
+
+    function showRateLimitBanner(message, autoHideMs = 8000) {
+        const banner = document.getElementById('rate-limit-banner');
+        const text = document.getElementById('rate-limit-banner-text');
+        if (!banner || !text) return;
+        text.textContent = message;
+        banner.classList.add('visible');
+        clearTimeout(_rateLimitHideTimer);
+        if (autoHideMs > 0) {
+            _rateLimitHideTimer = setTimeout(() => banner.classList.remove('visible'), autoHideMs);
+        }
+    }
+
+    function hideRateLimitBanner() {
+        const banner = document.getElementById('rate-limit-banner');
+        if (banner) banner.classList.remove('visible');
+        clearTimeout(_rateLimitHideTimer);
+    }
 
     function debounce(fn, wait) {
         let timer = null;
@@ -810,8 +860,10 @@
         _turnstileSiteKey = siteKey || _turnstileSiteKey;
         const overlay = document.getElementById('turnstile-overlay');
         if (!_turnstileSiteKey || !overlay) {
+            showRateLimitBanner('Rate limited — wait a minute before searching again.', 12000);
             throw new Error('Verification required. Please wait a minute and try again.');
         }
+        showRateLimitBanner('Rate limited — complete the check below to continue searching.', 0);
         await waitForTurnstile();
         overlay.classList.add('visible');
         overlay.setAttribute('aria-hidden', 'false');
@@ -829,10 +881,12 @@
                     _turnstileToken = token;
                     overlay.classList.remove('visible');
                     overlay.setAttribute('aria-hidden', 'true');
+                    showRateLimitBanner('Verified — you can keep searching.', 4000);
                     if (_turnstileReady) _turnstileReady.resolve(token);
                     _turnstileReady = null;
                 },
                 'error-callback': () => {
+                    showRateLimitBanner('Verification failed — try again in a moment.', 8000);
                     if (_turnstileReady) _turnstileReady.reject(new Error('Turnstile failed'));
                     _turnstileReady = null;
                 },
@@ -864,10 +918,15 @@
         if (res.status === 429) {
             let body = {};
             try { body = await res.clone().json(); } catch (_) {}
+            const retryAfter = parseInt(res.headers.get('Retry-After') || '60', 10);
             if (body.turnstile || body.error === 'turnstile_required') {
                 await showTurnstileChallenge(body.site_key);
                 headers['cf-turnstile-response'] = _turnstileToken;
                 const retry = await fetch(url, { ...options, headers });
+                if (retry.status === 429) {
+                    showRateLimitBanner(`Still rate limited — try again in ${retryAfter}s.`, Math.max(5000, retryAfter * 1000));
+                    throw new Error(`Too many requests. Try again in ${retryAfter}s.`);
+                }
                 if (!retry.ok) throw new Error(`HTTP ${retry.status}`);
                 const data = await retry.json();
                 if (cacheKey) cacheSet(cacheKey, data);
@@ -877,8 +936,11 @@
                     json: async () => data,
                 };
             }
-            const retryAfter = res.headers.get('Retry-After') || '60';
-            throw new Error(`Too many requests. Try again in ${retryAfter}s.`);
+            const reason = body.error === 'ip_cooldown' || body.error === 'rate_limit_block'
+                ? 'Temporarily blocked for too many requests'
+                : 'Rate limited — too many searches';
+            showRateLimitBanner(`${reason}. Try again in ${retryAfter}s.`, Math.max(5000, retryAfter * 1000));
+            throw new Error(`${reason}. Try again in ${retryAfter}s.`);
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         if (cacheKey) {
@@ -1442,6 +1504,8 @@
         const content       = document.getElementById('content');
         const loadingText   = document.getElementById('loading-text');
         const statusText    = document.getElementById('index-status');
+        const rlClose = document.getElementById('rate-limit-banner-close');
+        if (rlClose) rlClose.addEventListener('click', hideRateLimitBanner);
 
         document.getElementById('searchTarget').addEventListener('change', function () {
             const v = this.value;
