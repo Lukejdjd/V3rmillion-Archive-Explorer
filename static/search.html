@@ -2748,9 +2748,12 @@
             const params = new URLSearchParams(window.location.search);
             if (params.has('id')) {
                 params.delete('id');
+                // restore index offset if we were on a paginated index search
+                if (indexLastParams && indexOffset > 0 && !params.has('offset')) {
+                    params.set('offset', indexOffset);
+                }
                 const query = params.toString();
-                const url = window.location.pathname + (query ? '?' + query : '');
-                window.history.replaceState({}, '', url);
+                window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
             }
         };
 
