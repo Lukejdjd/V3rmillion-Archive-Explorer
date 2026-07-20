@@ -1180,7 +1180,10 @@
             }
             const resolvedName = profile.username || profile.Username || uid;
             const nameEl = overlay.querySelector('#user-modal-name');
-            if (nameEl) nameEl.textContent = resolvedName;
+            if (nameEl) {
+                nameEl.innerHTML = '';
+                nameEl.textContent = resolvedName;
+            }
             renderUserProfileBody(overlay.querySelector('#user-modal-body'), profile, uid);
         } catch (err) {
             overlay.querySelector('#user-modal-body').innerHTML =
