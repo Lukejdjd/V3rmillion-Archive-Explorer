@@ -148,13 +148,13 @@
         .viewer-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.85); z-index: 10000;
-            display: flex; justify-content: center; align-items: flex-start;
+            display: flex; justify-content: center; align-items: center;
             overflow-y: auto;
             padding: env(safe-area-inset-top) 0 0 0;
         }
         .viewer-card {
             width: min(96vw, 1440px); max-width: none;
-            height: 94vh; max-height: 94vh;
+            max-height: 94vh;
             background: #0a0a0a; border: 1px solid #2a2a2a;
             display: flex; flex-direction: column; overflow: hidden;
             margin-top: env(safe-area-inset-top, 0px);
@@ -211,7 +211,7 @@
         ::-webkit-scrollbar-thumb:hover { background: #666; }
         * { scrollbar-width: thin; scrollbar-color: #444 #0a0a0a; }
 
-        .viewer-body { overflow-y: auto; flex: 0 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(94vh - 78px); }
+        .viewer-body { overflow-y: auto; flex: 1 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(94vh - 78px); }
 
         /* ── Post styling ── */
         .v3rm-post { overflow: hidden; border-top: 15px solid #0a0a0a; width: 100%; }
@@ -1121,10 +1121,13 @@
         overlay.innerHTML = `
             <div class="user-modal-card">
                 <div class="user-modal-header">
-                    <span style="color:#fff;font-weight:700;font-size:15px;">
-                        <i class="fa fa-user" style="color:#cd1818;margin-right:6px;"></i>
-                        ${escapeHTML(username || uid)}
-                    </span>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                        <span style="color:#fff;font-weight:700;font-size:15px;">
+                            <i class="fa fa-user" style="color:#cd1818;margin-right:6px;"></i>
+                            ${escapeHTML(username || uid)}
+                        </span>
+                        <button class="copy-link-btn user-copy-link" data-uid="${escapeHTML(String(uid))}"><i class="fa fa-link"></i> Copy Link</button>
+                    </div>
                     <button class="viewer-close-btn" id="close-user-modal">✕ Close</button>
                 </div>
                 <div class="user-modal-body" id="user-modal-body">
@@ -1135,6 +1138,33 @@
             </div>`;
         document.body.appendChild(overlay);
         overlay.querySelector('#close-user-modal').onclick = () => overlay.remove();
+        const userCopyBtn = overlay.querySelector('.user-copy-link');
+        if (userCopyBtn) {
+            userCopyBtn.onclick = function() {
+                const url = window.location.origin + window.location.pathname + '?mode=fts&uid=' + encodeURIComponent(this.getAttribute('data-uid'));
+                navigator.clipboard.writeText(url).then(() => {
+                    userCopyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
+                    setTimeout(() => { userCopyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link'; }, 2000);
+                }).catch((err) => {
+                    console.warn('Clipboard write failed, falling back to manual select:', err);
+                    try {
+                        const tmp = document.createElement('input');
+                        tmp.style.position = 'fixed'; tmp.style.left = '-9999px';
+                        tmp.value = url;
+                        document.body.appendChild(tmp);
+                        tmp.select();
+                        tmp.setSelectionRange(0, tmp.value.length);
+                        document.execCommand('copy');
+                        document.body.removeChild(tmp);
+                        userCopyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
+                        setTimeout(() => { userCopyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link'; }, 2000);
+                    } catch (e) {
+                        document.body.removeChild(tmp);
+                        window.prompt('Copy this link', url);
+                    }
+                });
+            };
+        }
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
         try {
             let profile;
