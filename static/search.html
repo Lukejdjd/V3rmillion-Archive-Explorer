@@ -1125,7 +1125,6 @@
                         <span style="color:#fff;font-weight:700;font-size:15px;">
                             <i class="fa fa-user" style="color:#cd1818;margin-right:6px;"></i>
                             <span id="user-modal-name">${username ? escapeHTML(username) : ''}</span>
-                            ${escapeHTML(username || uid)}
                         </span>
                         <button class="copy-link-btn user-copy-link" data-uid="${escapeHTML(String(uid))}"><i class="fa fa-link"></i> Copy Link</button>
                     </div>
@@ -1138,7 +1137,28 @@
                 </div>
             </div>`;
         document.body.appendChild(overlay);
-        overlay.querySelector('#close-user-modal').onclick = () => overlay.remove();
+        window.history.pushState({ type: 'user', uid }, '', `?uid=${encodeURIComponent(uid)}`);
+        document.body.style.overflow = 'hidden';
+
+        const restoreScroll = () => {
+            if (!document.querySelector('.viewer-overlay') && !document.querySelector('.user-modal-overlay')) {
+                document.body.style.overflow = '';
+            }
+        };
+        const closeModal = () => {
+            overlay.remove();
+            restoreScroll();
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('uid')) {
+                params.delete('uid');
+                const query = params.toString();
+                window.history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+            }
+        };
+
+        overlay.querySelector('#close-user-modal').onclick = closeModal;
+        overlay.addEventListener('click', e => { if (e.target === overlay) closeModal(); });
+
         const userCopyBtn = overlay.querySelector('.user-copy-link');
         if (userCopyBtn) {
             userCopyBtn.onclick = function() {
@@ -1166,8 +1186,8 @@
                 });
             };
         }
-        overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-       try {
+
+        try {
             let profile;
             if (_userProfileCache.has(uid)) {
                 profile = _userProfileCache.get(uid);
@@ -2606,6 +2626,7 @@
                 <div class="viewer-body" id="modal-viewer-body"></div>
             </div>`;
         document.body.appendChild(overlay);
+        document.body.style.overflow = 'hidden';
 
         async function loadModalPage(page) {
             if (!pageCache.has(page)) {
@@ -2721,6 +2742,9 @@
 
         const clearUrlParam = () => {
             overlay.remove();
+            if (!document.querySelector('.viewer-overlay') && !document.querySelector('.user-modal-overlay')) {
+                document.body.style.overflow = '';
+            }
             const params = new URLSearchParams(window.location.search);
             if (params.has('id')) {
                 params.delete('id');
