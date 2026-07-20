@@ -1141,7 +1141,7 @@
         const userCopyBtn = overlay.querySelector('.user-copy-link');
         if (userCopyBtn) {
             userCopyBtn.onclick = function() {
-                const url = window.location.origin + window.location.pathname + '?mode=fts&uid=' + encodeURIComponent(this.getAttribute('data-uid'));
+                const url = window.location.origin + window.location.pathname + '?uid=' + encodeURIComponent(this.getAttribute('data-uid'));
                 navigator.clipboard.writeText(url).then(() => {
                     userCopyBtn.innerHTML = '<i class="fa fa-check"></i> Copied!';
                     setTimeout(() => { userCopyBtn.innerHTML = '<i class="fa fa-link"></i> Copy Link'; }, 2000);
@@ -1881,6 +1881,12 @@
         const targetThreadId = urlParams.get('id');
         if (targetThreadId) {
             fetchAndRenderThread(targetThreadId);
+            return;
+        }
+
+        const uidParam = urlParams.get('uid');
+        if (uidParam && !urlParams.get('mode')) {
+            showUserProfile(uidParam, '');
             return;
         }
 
