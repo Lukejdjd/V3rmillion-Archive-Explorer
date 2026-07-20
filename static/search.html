@@ -2644,7 +2644,7 @@
 
         function renderModalPage(page) {
             currentModalPage = page;
-            postCounter = 0;
+            postCounter = (page - 1) * POSTS_PER_PAGE;
             const viewerBody = overlay.querySelector('#modal-viewer-body');
             viewerBody.innerHTML = '';
             viewerBody.scrollTop = 0;
