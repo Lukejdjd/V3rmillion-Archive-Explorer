@@ -1124,6 +1124,7 @@
                     <div style="display:flex;align-items:center;gap:8px;">
                         <span style="color:#fff;font-weight:700;font-size:15px;">
                             <i class="fa fa-user" style="color:#cd1818;margin-right:6px;"></i>
+                            <span id="user-modal-name">${escapeHTML(username || uid)}</span>
                             ${escapeHTML(username || uid)}
                         </span>
                         <button class="copy-link-btn user-copy-link" data-uid="${escapeHTML(String(uid))}"><i class="fa fa-link"></i> Copy Link</button>
@@ -1166,7 +1167,7 @@
             };
         }
         overlay.addEventListener('click', e => { if (e.target === overlay) overlay.remove(); });
-        try {
+       try {
             let profile;
             if (_userProfileCache.has(uid)) {
                 profile = _userProfileCache.get(uid);
@@ -1177,6 +1178,9 @@
                 profile = data.user;
                 _userProfileCache.set(uid, profile);
             }
+            const resolvedName = profile.username || profile.Username || uid;
+            const nameEl = overlay.querySelector('#user-modal-name');
+            if (nameEl) nameEl.textContent = resolvedName;
             renderUserProfileBody(overlay.querySelector('#user-modal-body'), profile, uid);
         } catch (err) {
             overlay.querySelector('#user-modal-body').innerHTML =
