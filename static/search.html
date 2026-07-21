@@ -186,6 +186,7 @@
             background: rgba(0,0,0,0.9); z-index: 10001;
             display: flex; justify-content: center; align-items: center;
         }
+        .user-modal-overlay[hidden] { display: none; }
         .user-modal-card {
             width: 92%; max-width: 620px; max-height: 90vh;
             background: #0d0d0d; border: 1px solid #2a2a2a; border-top: 4px solid #cd1818;
@@ -219,16 +220,36 @@
             display: flex; justify-content: space-between; align-items: baseline;
             gap: 12px; margin-bottom: 4px;
         }
+        .reputation-history-giver-link {
+            padding: 0; border: 0; background: transparent; color: #cd1818;
+            font: inherit; font-weight: 700; cursor: pointer;
+        }
+        .reputation-history-giver-link:hover { color: #ff3030; text-decoration: underline; }
         .reputation-history-giver { color: #aaa; font-weight: 700; }
+        .reputation-history-type {
+            display: inline-block; min-width: 54px; margin-right: 5px;
+            padding: 1px 5px; border: 1px solid #333; border-radius: 2px;
+            text-align: center; text-transform: uppercase; font-size: 0.58rem;
+            letter-spacing: 0.04em;
+        }
+        .reputation-history-type.positive { color: #29cb09; border-color: #194d12; background: #0d1b0b; }
+        .reputation-history-type.negative { color: #e02b2b; border-color: #581717; background: #200c0c; }
+        .reputation-history-type.neutral { color: #aaa; border-color: #3a3a3a; background: #171717; }
         .reputation-history-date { color: #555; font-size: 0.7rem; white-space: nowrap; }
         .reputation-history-reason { color: #bbb; font-size: 0.77rem; line-height: 1.45; }
         .reputation-history-empty { color: #666; padding: 8px 4px; text-align: center; }
-        .reputation-history-more {
-            width: 100%; margin-top: 8px; padding: 6px;
-            background: #171717; border: 1px solid #333; color: #bbb;
-            font-size: 0.75rem; font-weight: 700; cursor: pointer;
+        .reputation-history-pagination {
+            display: flex; align-items: center; justify-content: center;
+            gap: 10px; margin-top: 9px; padding-top: 8px; border-top: 1px solid #1d1d1d;
         }
-        .reputation-history-more:hover { border-color: #cd1818; color: #fff; }
+        .reputation-history-page-btn {
+            min-width: 72px; padding: 5px 9px; background: #171717;
+            border: 1px solid #333; color: #bbb; font-size: 0.7rem;
+            font-weight: 700; cursor: pointer;
+        }
+        .reputation-history-page-btn:hover:not(:disabled) { border-color: #cd1818; color: #fff; }
+        .reputation-history-page-btn:disabled { opacity: 0.35; cursor: default; }
+        .reputation-history-page-status { min-width: 112px; color: #777; font-size: 0.68rem; text-align: center; }
         .user-awards-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
         .user-award-badge { background: #1a1a1a; border: 1px solid #333; color: #aaa; font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; }
 
@@ -1142,10 +1163,18 @@
     // ════════════════════════════════════════════════════════════════════════
     // USER PROFILE MODAL
     // ════════════════════════════════════════════════════════════════════════
-    async function showUserProfile(uid, username) {
-        document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
+    async function showUserProfile(uid, username, options = {}) {
+        const parentOverlay = options.parentOverlay && options.parentOverlay.isConnected
+            ? options.parentOverlay
+            : null;
+        if (parentOverlay) {
+            parentOverlay.hidden = true;
+        } else {
+            document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
+        }
         const overlay = document.createElement('div');
         overlay.className = 'user-modal-overlay';
+        overlay.dataset.userUid = String(uid);
         overlay.innerHTML = `
             <div class="user-modal-card">
                 <div class="user-modal-header">
@@ -1156,7 +1185,7 @@
                         </span>
                         <button class="copy-link-btn user-copy-link" data-uid="${escapeHTML(String(uid))}"><i class="fa fa-link"></i> Copy Link</button>
                     </div>
-                    <button class="viewer-close-btn" id="close-user-modal">✕ Close</button>
+                    <button class="viewer-close-btn" id="close-user-modal">${parentOverlay ? '← Back' : '✕ Close'}</button>
                 </div>
                 <div class="user-modal-body" id="user-modal-body">
                     <div style="text-align:center;padding:30px;color:#555;">
@@ -1165,7 +1194,11 @@
                 </div>
             </div>`;
         document.body.appendChild(overlay);
-        window.history.pushState({ type: 'user', uid }, '', `?uid=${encodeURIComponent(uid)}`);
+        if (parentOverlay) {
+            window.history.replaceState({ type: 'user', uid }, '', `?uid=${encodeURIComponent(uid)}`);
+        } else {
+            window.history.pushState({ type: 'user', uid }, '', `?uid=${encodeURIComponent(uid)}`);
+        }
         document.body.style.overflow = 'hidden';
 
         const restoreScroll = () => {
@@ -1175,6 +1208,16 @@
         };
         const closeModal = () => {
             overlay.remove();
+            if (parentOverlay && parentOverlay.isConnected) {
+                parentOverlay.hidden = false;
+                const parentUid = parentOverlay.dataset.userUid || '';
+                window.history.replaceState(
+                    { type: 'user', uid: parentUid },
+                    '',
+                    `?uid=${encodeURIComponent(parentUid)}`
+                );
+                return;
+            }
             restoreScroll();
             const params = new URLSearchParams(window.location.search);
             if (params.has('uid')) {
@@ -1243,12 +1286,21 @@
         const rating = Number(entry.rating || 0);
         const ratingText = `${rating > 0 ? '+' : ''}${rating}`;
         const ratingColor = rating > 0 ? '#29cb09' : (rating < 0 ? '#d02020' : '#999');
+        const rawType = String(entry.rating_type || '').toLowerCase();
+        const ratingType = ['positive', 'neutral', 'negative'].includes(rawType)
+            ? rawType
+            : (rating > 0 ? 'positive' : (rating < 0 ? 'negative' : 'neutral'));
+        const ratingLabel = ratingType.charAt(0).toUpperCase() + ratingType.slice(1);
         const giver = entry.giver_username || (entry.giver_user_id ? `UID ${entry.giver_user_id}` : 'Unknown user');
         const reason = entry.reason || 'No comment entered.';
+        const giverHTML = entry.giver_user_id
+            ? `<button type="button" class="reputation-history-giver-link" data-uid="${escapeHTML(String(entry.giver_user_id))}" data-username="${escapeHTML(giver)}">${escapeHTML(giver)}</button>`
+            : `<span class="reputation-history-giver">${escapeHTML(giver)}</span>`;
         return `<div class="reputation-history-entry">
             <div class="reputation-history-heading">
-                <span><strong style="color:${ratingColor};">${escapeHTML(ratingText)}</strong>
-                    <span class="reputation-history-giver"> from ${escapeHTML(giver)}</span></span>
+                <span><span class="reputation-history-type ${ratingType}">${ratingLabel}</span>
+                    <strong style="color:${ratingColor};">${escapeHTML(ratingText)}</strong>
+                    <span style="color:#777;"> from </span>${giverHTML}</span>
                 <span class="reputation-history-date">${escapeHTML(entry.updated_at || 'Unknown date')}</span>
             </div>
             <div class="reputation-history-reason">${escapeHTML(reason).replace(/\n/g, '<br>')}</div>
@@ -1260,42 +1312,65 @@
         if (!toggle) return;
         const panel = container.querySelector('.reputation-history-panel');
         const list = panel.querySelector('.reputation-history-list');
-        const status = panel.querySelector('.reputation-history-status');
-        const more = panel.querySelector('.reputation-history-more');
+        const previous = panel.querySelector('.reputation-history-previous');
+        const next = panel.querySelector('.reputation-history-next');
+        const status = panel.querySelector('.reputation-history-page-status');
         const action = toggle.querySelector('.reputation-history-action');
+        const pageSize = 10;
 
-        async function loadNextPage() {
-            const offset = Number(panel.dataset.offset || 0);
-            more.hidden = true;
-            status.innerHTML = '<div class="reputation-history-empty">Loading reputation history...</div>';
+        async function loadPage(requestedPage) {
+            const knownTotal = Number(toggle.dataset.count || 0);
+            const totalPages = Math.max(1, Math.ceil(knownTotal / pageSize));
+            const page = Math.min(totalPages, Math.max(1, requestedPage));
+            const offset = (page - 1) * pageSize;
+            previous.disabled = true;
+            next.disabled = true;
+            status.textContent = 'Loading...';
             try {
-                const res = await apiFetch(`/api/user_reputation?uid=${encodeURIComponent(uid)}&offset=${offset}&limit=25`);
+                const res = await apiFetch(`/api/user_reputation?uid=${encodeURIComponent(uid)}&offset=${offset}&limit=${pageSize}`);
                 const data = await res.json();
                 if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
                 const entries = Array.isArray(data.entries) ? data.entries : [];
-                if (offset === 0 && entries.length === 0) {
+                if (entries.length === 0) {
                     list.innerHTML = '<div class="reputation-history-empty">No archived reputation entries.</div>';
                 } else {
-                    list.insertAdjacentHTML('beforeend', entries.map(reputationEntryHTML).join(''));
+                    list.innerHTML = entries.map(reputationEntryHTML).join('');
                 }
-                const nextOffset = offset + entries.length;
-                panel.dataset.offset = String(nextOffset);
+                const total = Number(data.total || 0);
+                const pages = Math.max(1, Math.ceil(total / pageSize));
+                panel.dataset.page = String(page);
                 panel.dataset.loaded = '1';
-                status.textContent = data.total ? `${nextOffset.toLocaleString()} of ${Number(data.total).toLocaleString()} ratings` : '';
-                more.hidden = nextOffset >= Number(data.total || 0);
+                status.textContent = total
+                    ? `Page ${page.toLocaleString()} of ${pages.toLocaleString()}`
+                    : 'No ratings';
+                previous.disabled = page <= 1;
+                next.disabled = page >= pages;
             } catch (error) {
-                status.innerHTML = `<div class="reputation-history-empty" style="color:#cd1818;">Failed to load reputation: ${escapeHTML(error.message)}</div>`;
-                more.hidden = false;
+                list.innerHTML = `<div class="reputation-history-empty" style="color:#cd1818;">Failed to load reputation: ${escapeHTML(error.message)}</div>`;
+                status.textContent = 'Try again';
+                previous.disabled = false;
+                next.disabled = false;
             }
         }
 
-        more.onclick = loadNextPage;
+        previous.onclick = () => loadPage(Number(panel.dataset.page || 1) - 1);
+        next.onclick = () => loadPage(Number(panel.dataset.page || 1) + 1);
+        list.addEventListener('click', event => {
+            const giverLink = event.target.closest('.reputation-history-giver-link');
+            if (!giverLink) return;
+            const currentOverlay = container.closest('.user-modal-overlay');
+            showUserProfile(
+                giverLink.dataset.uid,
+                giverLink.dataset.username || '',
+                { parentOverlay: currentOverlay }
+            );
+        });
         toggle.onclick = async () => {
             const opening = panel.hidden;
             panel.hidden = !opening;
             toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
             action.textContent = opening ? '▴ Collapse' : `▾ Show ${Number(toggle.dataset.count || 0).toLocaleString()}`;
-            if (opening && panel.dataset.loaded !== '1') await loadNextPage();
+            if (opening && panel.dataset.loaded !== '1') await loadPage(1);
         };
     }
 
@@ -1363,10 +1438,13 @@
                     </button>` : `<strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong>`}
                 </span>
                 ${reputationHistoryCount > 0 ? `
-                <div class="reputation-history-panel" hidden data-offset="0">
+                <div class="reputation-history-panel" hidden data-page="1">
                     <div class="reputation-history-list"></div>
-                    <div class="reputation-history-status" style="color:#555;font-size:0.68rem;text-align:center;margin-top:5px;"></div>
-                    <button type="button" class="reputation-history-more" hidden>Load more</button>
+                    <div class="reputation-history-pagination">
+                        <button type="button" class="reputation-history-page-btn reputation-history-previous" disabled>‹ Previous</button>
+                        <span class="reputation-history-page-status">Page 1</span>
+                        <button type="button" class="reputation-history-page-btn reputation-history-next">Next ›</button>
+                    </div>
                 </div>` : ''}
             </div>`
             : '';
