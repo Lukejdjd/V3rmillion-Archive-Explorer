@@ -146,18 +146,25 @@
 
         /* ── Viewer modal ── */
         .viewer-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            position: fixed; inset: 0; width: 100%; height: 100%; height: 100dvh;
             background: rgba(0,0,0,0.85); z-index: 10000;
-            display: flex; justify-content: center; align-items: center;
+            display: flex; justify-content: center; align-items: flex-start;
             overflow-y: auto;
-            padding: env(safe-area-inset-top) 0 0 0;
+            box-sizing: border-box;
+            padding:
+                max(8px, env(safe-area-inset-top, 0px))
+                max(8px, env(safe-area-inset-right, 0px))
+                max(8px, env(safe-area-inset-bottom, 0px))
+                max(8px, env(safe-area-inset-left, 0px));
         }
         .viewer-card {
             width: min(96vw, 1440px); max-width: none;
-            max-height: 94vh;
+            max-height: calc(100vh - 16px);
+            max-height: calc(100dvh - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px) - 16px);
             background: #0a0a0a; border: 1px solid #2a2a2a;
             display: flex; flex-direction: column; overflow: hidden;
-            margin-top: env(safe-area-inset-top, 0px);
+            margin: auto 0;
+            min-height: 0;
         }
         .viewer-header {
             background: #1a1a1a; border-bottom: 5px solid #cd1818;
@@ -294,7 +301,7 @@
         ::-webkit-scrollbar-thumb:hover { background: #666; }
         * { scrollbar-width: thin; scrollbar-color: #444 #0a0a0a; }
 
-        .viewer-body { overflow-y: auto; flex: 1 1 auto; background: #0a0a0a; padding: 0 14px 0 0; max-height: calc(94vh - 78px); }
+        .viewer-body { overflow-y: auto; flex: 1 1 auto; min-height: 0; background: #0a0a0a; padding: 0 14px 0 0; max-height: none; }
 
         /* ── Post styling ── */
         .v3rm-post { overflow: hidden; border-top: 15px solid #0a0a0a; width: 100%; }
@@ -499,8 +506,7 @@
             .logo-img { max-width: 110px; }
             .index-filter-grid, .fts-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .filter-search-field, .filter-keywords { grid-column: span 2; }
-            .viewer-card { width: 100vw; max-height: 100vh; }
-            .viewer-body { max-height: calc(100vh - 78px); }
+            .viewer-card { width: 100%; }
         }
         @media (max-width: 575.98px) {
             .index-filter-grid, .fts-filter-grid { grid-template-columns: 1fr; }
