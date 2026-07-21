@@ -468,13 +468,13 @@
             .page-box { border-left: 0; border-right: 0; padding: 16px; }
             .logo-img { max-width: 110px; }
             .index-filter-grid, .fts-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-            .filter-keywords { grid-column: span 2; }
+            .filter-search-field, .filter-keywords { grid-column: span 2; }
             .viewer-card { width: 100vw; max-height: 100vh; }
             .viewer-body { max-height: calc(100vh - 78px); }
         }
         @media (max-width: 575.98px) {
             .index-filter-grid, .fts-filter-grid { grid-template-columns: 1fr; }
-            .filter-keywords { grid-column: auto; }
+            .filter-search-field, .filter-keywords { grid-column: auto; }
             .search-toolbar { padding: 10px; }
             .search-mode-tab { flex: 1; padding: 7px 8px; font-size: .68rem; }
         }
@@ -681,7 +681,7 @@
                                     <option value="paid">Paid</option>
                                 </select>
                             </div>
-                            <div class="col-lg-2 col-md-6 mb-2">
+                            <div class="col-lg-2 col-md-6 mb-2 filter-search-field">
                                 <label class="small font-weight-bold text-muted mb-1 d-block">Search field</label>
                                 <select id="searchTarget" class="form-control filter-select">
                                     <option value="title" selected>Thread Title</option>
