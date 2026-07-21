@@ -912,6 +912,7 @@
     let ftsHasMore     = false;
     let ftsTotalResults = null;
     let ftsPageCache   = new Map();
+    let ftsLastElapsedMs = null;
     let ftsCurrentUid  = null;
     let suppressUrlUpdate = false;
 
@@ -1522,6 +1523,30 @@
         });
     }
 
+    function normalizeKnownAlts(value) {
+        let parsed = value;
+        if (typeof parsed === 'string') {
+            const trimmed = parsed.trim();
+            if (!trimmed || ['[]', '{}', 'null', 'none', '[object object]'].includes(trimmed.toLowerCase())) return [];
+            try { parsed = JSON.parse(trimmed); } catch (_) { return []; }
+        }
+        if (parsed === null || parsed === undefined) return [];
+        if (!Array.isArray(parsed)) {
+            parsed = parsed && typeof parsed === 'object' && (parsed.user_id || parsed.uid || parsed.username)
+                ? [parsed]
+                : [];
+        }
+        return parsed.map(alt => {
+            if (alt && typeof alt === 'object') {
+                return (alt.user_id || alt.uid || alt.username) ? alt : null;
+            }
+            const username = String(alt || '').trim();
+            return username && username.toLowerCase() !== '[object object]'
+                ? { username, certainty: 'Unknown' }
+                : null;
+        }).filter(Boolean);
+    }
+
     function renderUserProfileBody(container, p, uid) {
         function row(label, value, cls = '') {
             if (!value && value !== 0) return '';
@@ -1543,14 +1568,7 @@
         const timeOnline  = p.time_online || '';
         const altsRaw     = p.alts;
 
-        let alts = altsRaw;
-        try { alts = JSON.parse(altsRaw); } catch(e) {}
-        if (!Array.isArray(alts)) alts = [];
-        const normalizedAlts = alts.map(alt => {
-            if (alt && typeof alt === 'object') return alt;
-            const username = String(alt || '').trim();
-            return username ? { username, certainty: 'Unknown' } : null;
-        }).filter(Boolean);
+        const normalizedAlts = normalizeKnownAlts(altsRaw);
         const altsHTML = normalizedAlts.length
             ? `<div class="user-stat-row known-alts-row">
                 <span class="user-stat-label">Known Alts</span>
@@ -1687,6 +1705,7 @@
         ftsHasMore     = false;
         ftsTotalResults = null;
         ftsPageCache.clear();
+        ftsLastElapsedMs = null;
         document.getElementById('fts-results').innerHTML = '';
         document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
@@ -1893,6 +1912,7 @@
         ftsHasMore = false;
         ftsTotalResults = null;
         ftsPageCache.clear();
+        ftsLastElapsedMs = null;
         document.getElementById('fts-results').innerHTML = '';
         document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
@@ -1943,12 +1963,11 @@
                 : (ftsTotalResults !== null ? ftsOffset + rows.length < ftsTotalResults : rows.length === FTS_PAGE_SIZE);
             const renderedOffset = ftsOffset;
             rows.forEach(post => container.appendChild(buildFtsResultRow(post, renderedOffset)));
+            if (elapsedMs != null) ftsLastElapsedMs = elapsedMs;
             const metricsEl = document.getElementById('fts-metrics');
-            const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
-            const first = ftsOffset + 1;
-            const last = ftsOffset + rows.length;
-            const totalText = ftsTotalResults !== null ? ` of ${ftsTotalResults.toLocaleString()}` : '';
-            metricsEl.textContent = `${first.toLocaleString()}-${last.toLocaleString()}${totalText} shown${timing}`;
+            const timing = ftsLastElapsedMs != null ? ` (${formatDuration(ftsLastElapsedMs)})` : ' (cached)';
+            const resultCount = ftsTotalResults !== null ? ftsTotalResults : rows.length;
+            metricsEl.textContent = `${resultCount.toLocaleString()} post${resultCount === 1 ? '' : 's'} found${timing}`;
             metricsEl.style.display = 'flex';
             renderFtsPagination();
         };
@@ -2024,26 +2043,36 @@
         }
         wrap.style.display = 'flex';
 
+        const currentPage = Math.floor(ftsOffset / FTS_PAGE_SIZE) + 1;
+        const totalPages = ftsTotalResults !== null
+            ? Math.max(1, Math.ceil(ftsTotalResults / FTS_PAGE_SIZE))
+            : currentPage + (ftsHasMore ? 1 : 0);
+
         const previous = document.createElement('button');
         previous.className = 'idx-page-btn';
-        previous.textContent = 'Previous';
-        previous.disabled = ftsOffset === 0;
-        previous.onclick = () => changeFtsPage(Math.max(0, ftsOffset - FTS_PAGE_SIZE));
+        previous.textContent = '« Prev';
+        previous.disabled = currentPage <= 1;
+        previous.onclick = () => changeFtsPage((currentPage - 2) * FTS_PAGE_SIZE);
         wrap.appendChild(previous);
 
-        const status = document.createElement('span');
-        status.className = 'fts-page-status';
-        const currentPage = Math.floor(ftsOffset / FTS_PAGE_SIZE) + 1;
-        status.textContent = ftsTotalResults !== null
-            ? `Page ${currentPage.toLocaleString()} of ${Math.max(1, Math.ceil(ftsTotalResults / FTS_PAGE_SIZE)).toLocaleString()}`
-            : `Page ${currentPage.toLocaleString()}`;
-        wrap.appendChild(status);
+        let startPage = Math.max(1, currentPage - 3);
+        let endPage = Math.min(totalPages, startPage + 6);
+        if (endPage - startPage < 6) startPage = Math.max(1, endPage - 6);
+        for (let page = startPage; page <= endPage; page++) {
+            const button = document.createElement('button');
+            button.className = 'idx-page-btn' + (page === currentPage ? ' active' : '');
+            button.textContent = page.toLocaleString();
+            if (page !== currentPage) {
+                button.onclick = () => changeFtsPage((page - 1) * FTS_PAGE_SIZE);
+            }
+            wrap.appendChild(button);
+        }
 
         const next = document.createElement('button');
         next.className = 'idx-page-btn';
-        next.textContent = 'Next';
-        next.disabled = !ftsHasMore;
-        next.onclick = () => changeFtsPage(ftsOffset + FTS_PAGE_SIZE);
+        next.textContent = 'Next »';
+        next.disabled = currentPage >= totalPages || !ftsHasMore;
+        next.onclick = () => changeFtsPage(currentPage * FTS_PAGE_SIZE);
         wrap.appendChild(next);
     }
 

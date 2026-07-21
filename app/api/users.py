@@ -68,7 +68,8 @@ def get_user(uid: str = Query("")) -> dict[str, Any]:
     if "past_usernames" in user:
         user["past_usernames"] = parse_json_field(user.get("past_usernames")) or []
     if "alts" in user:
-        user["alts"] = parse_json_field(user.get("alts")) or []
+        parsed_alts = parse_json_field(user.get("alts"))
+        user["alts"] = parsed_alts if isinstance(parsed_alts, list) else []
     user["reputation_history_count"] = reputation_history_count
 
     payload = {"user": user}
