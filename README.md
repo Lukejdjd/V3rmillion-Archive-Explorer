@@ -14,13 +14,13 @@ To rebuild the databases yourself, download `users.zip` and `threads.zip` from t
 
 | Artifact | Raw size | Zstandard level 15 | SHA-256 of `.zst` |
 |---|---:|---:|---|
-| `users.db` | 114,286,592 bytes | 24,486,464 bytes | `9d3f99d83bb379e99c77eeca944ef7cb318a42905adfbb1ac7561ab727156e09` |
+| `users.db` | 206,098,432 bytes | 50,705,959 bytes | `6c5f14616c5768ea511a442c23b0b9d11f66a88fff1310d7542139a9e7efa38d` |
 | `threads.db` | 6,420,652,032 bytes | 1,389,124,620 bytes | `0c83061ab9eab77a5f66d1de6b074e750a952c9dfc80ac0a3edd5a3af5be5bc9` |
 
 Combined size:
 
-- Queryable SQLite databases: 6,534,938,624 bytes (6.09 GiB)
-- Compressed downloads: 1,413,611,084 bytes (1.32 GiB)
+- Queryable SQLite databases: 6,626,750,464 bytes (6.17 GiB)
+- Compressed downloads: 1,439,830,579 bytes (1.34 GiB)
 
 
 
@@ -211,6 +211,16 @@ python scripts/thread_parser.py --source zip --overwrite
 ```
 
 Run users first. Expect parsing to take a while.
+
+If `users.db` already contains the profiles and you only need to add or refresh
+reputation reasons and dates, use the much faster reputation-only pass:
+
+```bash
+python scripts/reputation_parser.py --db-path data/users.db
+```
+
+This reads `reputation_*.html` directly from `users.zip`, preserves the existing
+profile and FTS rows, and shows live page and rating counts while it runs.
 
 ## Create release downloads
 

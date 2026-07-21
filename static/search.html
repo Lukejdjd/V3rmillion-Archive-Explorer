@@ -201,6 +201,34 @@
         .user-stat-label { color: #666; width: 140px; flex-shrink: 0; }
         .user-stat-value { color: #ccc; word-break: break-all; }
         .user-stat-value.red { color: #cd1818; font-weight: 700; }
+        .reputation-history-row { flex-wrap: wrap; }
+        .reputation-history-toggle {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0; border: 0; background: transparent; color: inherit;
+            font: inherit; cursor: pointer;
+        }
+        .reputation-history-toggle:hover .reputation-history-action { color: #ff3030; }
+        .reputation-history-action { color: #cd1818; font-size: 0.72rem; font-weight: 700; }
+        .reputation-history-panel {
+            flex: 0 0 100%; margin-top: 8px; padding: 8px;
+            background: #090909; border: 1px solid #222;
+        }
+        .reputation-history-entry { padding: 9px 4px; border-bottom: 1px solid #1d1d1d; }
+        .reputation-history-entry:last-child { border-bottom: 0; }
+        .reputation-history-heading {
+            display: flex; justify-content: space-between; align-items: baseline;
+            gap: 12px; margin-bottom: 4px;
+        }
+        .reputation-history-giver { color: #aaa; font-weight: 700; }
+        .reputation-history-date { color: #555; font-size: 0.7rem; white-space: nowrap; }
+        .reputation-history-reason { color: #bbb; font-size: 0.77rem; line-height: 1.45; }
+        .reputation-history-empty { color: #666; padding: 8px 4px; text-align: center; }
+        .reputation-history-more {
+            width: 100%; margin-top: 8px; padding: 6px;
+            background: #171717; border: 1px solid #333; color: #bbb;
+            font-size: 0.75rem; font-weight: 700; cursor: pointer;
+        }
+        .reputation-history-more:hover { border-color: #cd1818; color: #fff; }
         .user-awards-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
         .user-award-badge { background: #1a1a1a; border: 1px solid #333; color: #aaa; font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; }
 
@@ -1211,6 +1239,66 @@
         }
     }
 
+    function reputationEntryHTML(entry) {
+        const rating = Number(entry.rating || 0);
+        const ratingText = `${rating > 0 ? '+' : ''}${rating}`;
+        const ratingColor = rating > 0 ? '#29cb09' : (rating < 0 ? '#d02020' : '#999');
+        const giver = entry.giver_username || (entry.giver_user_id ? `UID ${entry.giver_user_id}` : 'Unknown user');
+        const reason = entry.reason || 'No comment entered.';
+        return `<div class="reputation-history-entry">
+            <div class="reputation-history-heading">
+                <span><strong style="color:${ratingColor};">${escapeHTML(ratingText)}</strong>
+                    <span class="reputation-history-giver"> from ${escapeHTML(giver)}</span></span>
+                <span class="reputation-history-date">${escapeHTML(entry.updated_at || 'Unknown date')}</span>
+            </div>
+            <div class="reputation-history-reason">${escapeHTML(reason).replace(/\n/g, '<br>')}</div>
+        </div>`;
+    }
+
+    function bindReputationHistory(container, uid) {
+        const toggle = container.querySelector('.reputation-history-toggle');
+        if (!toggle) return;
+        const panel = container.querySelector('.reputation-history-panel');
+        const list = panel.querySelector('.reputation-history-list');
+        const status = panel.querySelector('.reputation-history-status');
+        const more = panel.querySelector('.reputation-history-more');
+        const action = toggle.querySelector('.reputation-history-action');
+
+        async function loadNextPage() {
+            const offset = Number(panel.dataset.offset || 0);
+            more.hidden = true;
+            status.innerHTML = '<div class="reputation-history-empty">Loading reputation history...</div>';
+            try {
+                const res = await apiFetch(`/api/user_reputation?uid=${encodeURIComponent(uid)}&offset=${offset}&limit=25`);
+                const data = await res.json();
+                if (!res.ok || data.error) throw new Error(data.error || `HTTP ${res.status}`);
+                const entries = Array.isArray(data.entries) ? data.entries : [];
+                if (offset === 0 && entries.length === 0) {
+                    list.innerHTML = '<div class="reputation-history-empty">No archived reputation entries.</div>';
+                } else {
+                    list.insertAdjacentHTML('beforeend', entries.map(reputationEntryHTML).join(''));
+                }
+                const nextOffset = offset + entries.length;
+                panel.dataset.offset = String(nextOffset);
+                panel.dataset.loaded = '1';
+                status.textContent = data.total ? `${nextOffset.toLocaleString()} of ${Number(data.total).toLocaleString()} ratings` : '';
+                more.hidden = nextOffset >= Number(data.total || 0);
+            } catch (error) {
+                status.innerHTML = `<div class="reputation-history-empty" style="color:#cd1818;">Failed to load reputation: ${escapeHTML(error.message)}</div>`;
+                more.hidden = false;
+            }
+        }
+
+        more.onclick = loadNextPage;
+        toggle.onclick = async () => {
+            const opening = panel.hidden;
+            panel.hidden = !opening;
+            toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            action.textContent = opening ? '▴ Collapse' : `▾ Show ${Number(toggle.dataset.count || 0).toLocaleString()}`;
+            if (opening && panel.dataset.loaded !== '1') await loadNextPage();
+        };
+    }
+
     function renderUserProfileBody(container, p, uid) {
         function row(label, value, cls = '') {
             if (!value && value !== 0) return '';
@@ -1224,6 +1312,7 @@
         const userRank    = p.user_rank   || p.userrank    || '';
         const uid_val     = p.user_id     || p.uid         || uid;
         const reputation  = p.reputation;
+        const reputationHistoryCount = Number(p.reputation_history_count || 0);
         const postCount   = p.post_count  || p.posts       || '';
         const threadCount = p.thread_count|| p.threads     || '';
         const joinDate    = p.join_date   || p.joined      || '';
@@ -1264,9 +1353,21 @@
         }
 
         const repHTML = (reputation !== null && reputation !== undefined && reputation !== '')
-            ? `<div class="user-stat-row">
+            ? `<div class="user-stat-row reputation-history-row">
                 <span class="user-stat-label">Reputation</span>
-                <span class="user-stat-value"><strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong></span>
+                <span class="user-stat-value" style="flex:1;">
+                    ${reputationHistoryCount > 0 ? `
+                    <button type="button" class="reputation-history-toggle" data-count="${reputationHistoryCount}" aria-expanded="false">
+                        <strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong>
+                        <span class="reputation-history-action">▾ Show ${reputationHistoryCount.toLocaleString()}</span>
+                    </button>` : `<strong style="color:${parseInt(reputation) >= 0 ? '#29cb09' : '#b40404'};">${escapeHTML(String(reputation))}</strong>`}
+                </span>
+                ${reputationHistoryCount > 0 ? `
+                <div class="reputation-history-panel" hidden data-offset="0">
+                    <div class="reputation-history-list"></div>
+                    <div class="reputation-history-status" style="color:#555;font-size:0.68rem;text-align:center;margin-top:5px;"></div>
+                    <button type="button" class="reputation-history-more" hidden>Load more</button>
+                </div>` : ''}
             </div>`
             : '';
 
@@ -1333,6 +1434,7 @@
             ${altsHTML}
             ${awardsHTML}
         `;
+        bindReputationHistory(container, String(uid_val));
     }
 
     function searchByUser(uid, username) {

@@ -44,6 +44,16 @@ def get_user(uid: str = Query("")) -> dict[str, Any]:
 
         cur.execute(f"SELECT * FROM users WHERE {uid_col} = ?", (uid,))
         row = cur.fetchone()
+        reputation_history_count = 0
+        history_table = cur.execute(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='reputation_history'"
+        ).fetchone()
+        if history_table:
+            reputation_history_count = cur.execute(
+                "SELECT COUNT(*) FROM reputation_history WHERE user_id = ?",
+                (uid,),
+            ).fetchone()[0]
     finally:
         conn.close()
 
@@ -57,6 +67,7 @@ def get_user(uid: str = Query("")) -> dict[str, Any]:
         user["user_group"] = parse_json_field(user.get("user_group"))
     if "past_usernames" in user:
         user["past_usernames"] = parse_json_field(user.get("past_usernames")) or []
+    user["reputation_history_count"] = reputation_history_count
 
     payload = {"user": user}
     cache.set(cache_key, payload, CACHE_TTL_USER)
@@ -387,5 +398,70 @@ def search_users(
         conn.close()
 
     payload = {"results": out, "total": total, "offset": offset, "limit": limit}
+    cache.set(cache_key, payload, CACHE_TTL_USER)
+    return payload
+
+
+@router.get("/user_reputation")
+def user_reputation(
+    uid: str = Query(""),
+    offset: int = Query(0),
+    limit: int = Query(25),
+) -> dict[str, Any]:
+    if not uid:
+        raise HTTPException(status_code=400, detail="uid required")
+
+    offset = bounded_int(offset, 0, 0, 100_000_000)
+    limit = bounded_int(limit, 25, 1, 100)
+
+    cache = get_cache()
+    cache_key = cache.make_key(
+        "user_reputation",
+        {"uid": uid, "offset": offset, "limit": limit},
+    )
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    db_path = users_db_path()
+    if not db_path.exists():
+        raise HTTPException(status_code=500, detail="users.db not found")
+
+    conn = connect_archive(db_path)
+    try:
+        history_table = conn.execute(
+            "SELECT 1 FROM sqlite_master "
+            "WHERE type='table' AND name='reputation_history'"
+        ).fetchone()
+        if not history_table:
+            payload = {
+                "entries": [], "total": 0, "offset": offset, "limit": limit
+            }
+        else:
+            total = conn.execute(
+                "SELECT COUNT(*) FROM reputation_history WHERE user_id = ?",
+                (uid,),
+            ).fetchone()[0]
+            rows = conn.execute(
+                """
+                SELECT reputation_id, giver_user_id, giver_username,
+                       giver_reputation, rating, rating_type, reason,
+                       updated_at, post_url
+                FROM reputation_history
+                WHERE user_id = ?
+                ORDER BY updated_sort DESC, reputation_id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (uid, limit, offset),
+            ).fetchall()
+            payload = {
+                "entries": [dict(row) for row in rows],
+                "total": total,
+                "offset": offset,
+                "limit": limit,
+            }
+    finally:
+        conn.close()
+
     cache.set(cache_key, payload, CACHE_TTL_USER)
     return payload

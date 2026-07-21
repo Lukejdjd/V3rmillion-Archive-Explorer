@@ -10,6 +10,7 @@ import re
 import sys
 import zipfile
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from selectolax.parser import HTMLParser, Node
@@ -35,6 +36,12 @@ DEFAULT_FOLDER_WORKERS = min(24, os.cpu_count() or 1)
 USER_ARCHIVE_FILENAMES = {
     "profile.html", "alts.html", "past_usernames.html"
 }
+REPUTATION_FILENAME_RE = re.compile(r"^reputation_(\d+)\.html$", re.IGNORECASE)
+REPUTATION_LABEL_RE = re.compile(
+    r"^(Positive|Neutral|Negative)\s*\(([+-]?\d+)\):?",
+    re.IGNORECASE,
+)
+REPUTATION_DATE_RE = re.compile(r"Last updated\s+(.+)$", re.IGNORECASE)
 
 
 def parse_awards_from_profile(tree: HTMLParser) -> List[Dict[str, str]]:
@@ -168,6 +175,119 @@ def parse_past_usernames_html(path: str) -> List[Dict[str, str]]:
         return []
     with open(path, "r", encoding="utf-8") as f:
         return parse_past_usernames_content(f.read())
+
+
+def reputation_date_sort_value(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(value.strip(), "%m-%d-%Y, %I:%M %p")
+    except ValueError:
+        return None
+    return int(parsed.strftime("%Y%m%d%H%M"))
+
+
+def parse_reputation_content(
+    content: Optional[str],
+    user_id: str,
+    source_page: int,
+) -> List[Tuple]:
+    if not content:
+        return []
+
+    tree = HTMLParser(content)
+    records: List[Tuple] = []
+    for cell in tree.css('td[id^="rid"]'):
+        reputation_id_match = re.fullmatch(
+            r"rid(\d+)", cell.attributes.get("id", ""), re.IGNORECASE
+        )
+        if not reputation_id_match:
+            continue
+
+        reputation_id = int(reputation_id_match.group(1))
+        giver_link = cell.css_first('a[href*="member.php?action=profile"]')
+        giver_user_id = None
+        giver_username = None
+        if giver_link:
+            giver_match = re.search(
+                r"(?:[?&](?:uid|user_id)=)(\d+)",
+                giver_link.attributes.get("href", ""),
+                re.IGNORECASE,
+            )
+            giver_user_id = giver_match.group(1) if giver_match else None
+            giver_username = giver_link.text(strip=True) or None
+
+        giver_reputation = None
+        smalltext = cell.css_first("span.smalltext")
+        if smalltext:
+            giver_rep_node = smalltext.css_first('a[href*="reputation.php"] strong')
+            if giver_rep_node:
+                giver_reputation = giver_rep_node.text(strip=True) or None
+
+        rating_type = None
+        rating_value = None
+        for strong in cell.css("strong"):
+            label_match = REPUTATION_LABEL_RE.match(strong.text(strip=True))
+            if label_match:
+                rating_type = label_match.group(1).lower()
+                rating_value = int(label_match.group(2))
+                break
+
+        updated_at = None
+        if smalltext:
+            date_match = REPUTATION_DATE_RE.search(
+                smalltext.text(separator=" ", strip=True)
+            )
+            if date_match:
+                updated_at = date_match.group(1).strip()
+
+        reason_node = cell.css_first('div[style*="word-break"]')
+        reason = (
+            reason_node.text(separator="\n", strip=True)
+            if reason_node
+            else None
+        )
+
+        post_url = None
+        post_link = cell.css_first(
+            'a[href*="showthread.php"], a[href*="post.php"], a[href*="#pid"]'
+        )
+        if post_link:
+            post_url = post_link.attributes.get("href") or None
+
+        records.append((
+            reputation_id,
+            user_id,
+            giver_user_id,
+            giver_username,
+            giver_reputation,
+            rating_value,
+            rating_type,
+            reason,
+            updated_at,
+            reputation_date_sort_value(updated_at),
+            post_url,
+            source_page,
+        ))
+    return records
+
+
+def parse_reputation_folder(folder: str, user_id: str) -> List[Tuple]:
+    pages = []
+    for entry in os.scandir(folder):
+        if not entry.is_file():
+            continue
+        match = REPUTATION_FILENAME_RE.fullmatch(entry.name)
+        if match:
+            pages.append((int(match.group(1)), entry.path))
+
+    records: List[Tuple] = []
+    for page_number, path in sorted(pages):
+        with open(path, "r", encoding="utf-8", errors="replace") as handle:
+            records.extend(
+                parse_reputation_content(handle.read(), user_id, page_number)
+            )
+    return records
 
 
 def parse_profile_content(
@@ -306,6 +426,24 @@ def init_users_db(create_fts: bool = True):
             past_usernames TEXT,
             past_usernames_search TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS reputation_history (
+            reputation_id INTEGER PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            giver_user_id TEXT,
+            giver_username TEXT,
+            giver_reputation TEXT,
+            rating INTEGER,
+            rating_type TEXT,
+            reason TEXT,
+            updated_at TEXT,
+            updated_sort INTEGER,
+            post_url TEXT,
+            source_page INTEGER NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_reputation_user_updated
+        ON reputation_history(user_id, updated_sort DESC, reputation_id DESC);
     ''')
 
     try:
@@ -431,7 +569,10 @@ def parse_user_worker(user_id: str) -> Tuple[str, Any]:
 
     try:
         profile = parse_profile_html(profile_html, user_id)
-        return "success", (profile_to_row(user_id, profile), profile)
+        reputation_rows = parse_reputation_folder(html_folder, user_id)
+        return "success", (
+            profile_to_row(user_id, profile), reputation_rows, profile
+        )
     except Exception as exc:
         return "error", f"Error parsing {user_id}: {exc}"
 
@@ -463,6 +604,28 @@ def write_user_batch_to_db(cur, batch_rows: List[Tuple]):
     """, batch_rows)
 
 
+def write_reputation_batch_to_db(cur, batch_rows: List[Tuple]):
+    cur.executemany("""
+        INSERT INTO reputation_history
+        (reputation_id, user_id, giver_user_id, giver_username,
+         giver_reputation, rating, rating_type, reason, updated_at,
+         updated_sort, post_url, source_page)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(reputation_id) DO UPDATE SET
+            user_id=excluded.user_id,
+            giver_user_id=excluded.giver_user_id,
+            giver_username=excluded.giver_username,
+            giver_reputation=excluded.giver_reputation,
+            rating=excluded.rating,
+            rating_type=excluded.rating_type,
+            reason=excluded.reason,
+            updated_at=excluded.updated_at,
+            updated_sort=excluded.updated_sort,
+            post_url=excluded.post_url,
+            source_page=excluded.source_page
+    """, batch_rows)
+
+
 def run_migration_on_user(user_id: str, overwrite: bool = False) -> Any:
     """Legacy single file processing fallback."""
     if not overwrite:
@@ -474,10 +637,13 @@ def run_migration_on_user(user_id: str, overwrite: bool = False) -> Any:
 
     status, payload = parse_user_worker(user_id)
     if status == "success":
-        row, profile = payload
+        row, reputation_rows, profile = payload
         conn = init_users_db()
         cur = conn.cursor()
         write_user_batch_to_db(cur, [row])
+        cur.execute("DELETE FROM reputation_history WHERE user_id = ?", (user_id,))
+        if reputation_rows:
+            write_reputation_batch_to_db(cur, reputation_rows)
         
         fts_exists = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='fts_users'").fetchone()
         if fts_exists and not user_fts_is_external(conn):
@@ -509,7 +675,10 @@ def load_user_archive_index():
             info.is_dir()
             or len(parts) != 3
             or parts[0] != "users"
-            or parts[2] not in USER_ARCHIVE_FILENAMES
+            or (
+                parts[2] not in USER_ARCHIVE_FILENAMES
+                and not REPUTATION_FILENAME_RE.fullmatch(parts[2])
+            )
         ):
             continue
         entries.setdefault(parts[1], {})[parts[2]] = info
@@ -533,13 +702,28 @@ def build_user_row_from_archive(archive, user_id, entries):
         read_optional("alts.html"),
         read_optional("past_usernames.html"),
     )
-    return profile_to_row(user_id, profile), profile
+    reputation_rows: List[Tuple] = []
+    reputation_pages = []
+    for name, info in entries.items():
+        match = REPUTATION_FILENAME_RE.fullmatch(name)
+        if match:
+            reputation_pages.append((int(match.group(1)), info))
+    for page_number, info in sorted(reputation_pages):
+        reputation_rows.extend(
+            parse_reputation_content(
+                archive.read(info).decode("utf-8", errors="replace"),
+                user_id,
+                page_number,
+            )
+        )
+    return profile_to_row(user_id, profile), reputation_rows, profile
 
 
 def run_concurrent_migration(
     overwrite: bool = False,
     workers: int = DEFAULT_FOLDER_WORKERS,
     source: str = "auto",
+    limit: Optional[int] = None,
 ):
     if source == "auto":
         source = "zip" if os.path.isfile(USERS_ZIP) else "folders"
@@ -560,6 +744,12 @@ def run_concurrent_migration(
         ]
     else:
         raise ValueError(f"Unknown user source: {source}")
+
+    if limit is not None:
+        user_ids.sort(
+            key=lambda value: int(value) if value.isdigit() else sys.maxsize
+        )
+        user_ids = user_ids[:max(0, limit)]
 
     total = len(user_ids)
 
@@ -598,31 +788,60 @@ def run_concurrent_migration(
     drop_user_fts_triggers(conn)
     conn.execute("DROP TABLE IF EXISTS fts_users")
     conn.execute("DROP VIEW IF EXISTS users_fts_content")
+    conn.execute("DROP INDEX IF EXISTS idx_reputation_user_updated")
+    if overwrite:
+        if limit is None:
+            conn.execute("DELETE FROM reputation_history")
+            conn.execute("DELETE FROM users")
+        else:
+            conn.executemany(
+                "DELETE FROM reputation_history WHERE user_id = ?",
+                ((user_id,) for user_id in users_to_process),
+            )
+            conn.executemany(
+                "DELETE FROM users WHERE user_id = ?",
+                ((user_id,) for user_id in users_to_process),
+            )
     conn.commit()
     conn.close()
 
     chunk_size = 10000
-    counts = {"done": 0, "skipped": skipped_count, "failed": 0}
+    counts = {
+        "done": 0,
+        "skipped": skipped_count,
+        "failed": 0,
+        "reputation": 0,
+    }
 
     # Open one writer and commit bounded batches.
     write_conn = sqlite3.connect(DB_PATH, timeout=300)
-    write_conn.execute("PRAGMA journal_mode=WAL")
+    write_conn.execute("PRAGMA journal_mode=OFF")
     write_conn.execute("PRAGMA synchronous=OFF")
+    write_conn.execute("PRAGMA locking_mode=EXCLUSIVE")
+    write_conn.execute("PRAGMA temp_store=MEMORY")
+    write_conn.execute("PRAGMA cache_size=-262144")
     write_cur = write_conn.cursor()
     pending_rows = []
+    pending_reputation_rows = []
 
     def flush_pending():
-        if not pending_rows:
+        if not pending_rows and not pending_reputation_rows:
             return
-        write_user_batch_to_db(write_cur, pending_rows)
+        if pending_rows:
+            write_user_batch_to_db(write_cur, pending_rows)
+        if pending_reputation_rows:
+            write_reputation_batch_to_db(write_cur, pending_reputation_rows)
         write_conn.commit()
         pending_rows.clear()
+        pending_reputation_rows.clear()
 
     def handle_result(status, res, pbar):
         if status == "success":
             pending_rows.append(res[0])
+            pending_reputation_rows.extend(res[1])
             counts["done"] += 1
-            if len(pending_rows) >= 500:
+            counts["reputation"] += len(res[1])
+            if len(pending_rows) >= 5000 or len(pending_reputation_rows) >= 50000:
                 flush_pending()
         elif status == "missing":
             counts["skipped"] += 1
@@ -631,7 +850,14 @@ def run_concurrent_migration(
             print(f"\n{res}")
         pbar.update(1)
 
-    with tqdm(total=total, desc="Profiles", unit="user", dynamic_ncols=True, mininterval=0.3) as pbar:
+    with tqdm(
+        total=total,
+        desc="Profiles",
+        unit="user",
+        dynamic_ncols=True,
+        mininterval=0.3,
+        disable=not sys.stderr.isatty(),
+    ) as pbar:
         if skipped_count > 0:
             pbar.update(skipped_count)
 
@@ -667,6 +893,7 @@ def run_concurrent_migration(
     print(f"✅ Done:     {counts['done']:,}")
     print(f"⏭ Skipped:  {counts['skipped']:,}")
     print(f"❌ Failed:   {counts['failed']:,}")
+    print(f"⭐ Reputation records: {counts['reputation']:,}")
     print("="*70)
 
     os.makedirs(INDEX_DIR, exist_ok=True)
@@ -693,11 +920,17 @@ def run_concurrent_migration(
     conn.execute("INSERT INTO fts_users(fts_users) VALUES('rebuild')")
     conn.execute("INSERT INTO fts_users(fts_users) VALUES('optimize')")
     create_user_fts_triggers(conn)
+    print("  Indexing reputation history...")
+    conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_reputation_user_updated
+        ON reputation_history(user_id, updated_sort DESC, reputation_id DESC)
+    """)
     conn.commit()
     print("FTS index rebuilt.")
 
     print("Running VACUUM (this may take a moment)...")
     conn.execute("VACUUM")
+    conn.execute("PRAGMA journal_mode=DELETE")
     conn.close()
     print("VACUUM complete.")
 
@@ -709,12 +942,25 @@ if __name__ == "__main__":
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--workers", type=int, default=DEFAULT_FOLDER_WORKERS)
     parser.add_argument(
+        "--db-path",
+        default=DB_PATH,
+        help="Output SQLite path (defaults to data/users.db)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Parse only the first N numeric user IDs (for benchmarking)",
+    )
+    parser.add_argument(
         "--source",
         choices=("auto", "zip", "folders"),
         default="auto",
         help="Bulk input source; auto prefers data/users.zip",
     )
     args = parser.parse_args()
+    DB_PATH = os.path.abspath(args.db_path)
+    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
     if args.user:
         result = run_migration_on_user(args.user, args.overwrite)
@@ -724,4 +970,5 @@ if __name__ == "__main__":
             overwrite=args.overwrite,
             workers=args.workers,
             source=args.source,
+            limit=args.limit,
         )

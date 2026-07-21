@@ -37,6 +37,7 @@ SEARCH_PATHS = {
 READ_PATHS = {
     "/api/thread",
     "/api/user",
+    "/api/user_reputation",
 }
 
 RATE_LIMIT_DB = Path(
