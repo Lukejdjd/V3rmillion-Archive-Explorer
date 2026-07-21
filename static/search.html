@@ -254,6 +254,36 @@
         .reputation-history-page-btn:hover:not(:disabled) { border-color: #cd1818; color: #fff; }
         .reputation-history-page-btn:disabled { opacity: 0.35; cursor: default; }
         .reputation-history-page-status { min-width: 112px; color: #777; font-size: 0.68rem; text-align: center; }
+        .known-alts-row { flex-wrap: wrap; }
+        .known-alts-toggle {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 0; border: 0; background: transparent; color: #ccc;
+            font: inherit; cursor: pointer;
+        }
+        .known-alts-toggle:hover .known-alts-action { color: #ff3030; }
+        .known-alts-action { color: #cd1818; font-size: 0.72rem; font-weight: 700; }
+        .known-alts-panel {
+            flex: 0 0 100%; max-height: 280px; overflow-y: auto;
+            margin-top: 8px; padding: 4px 8px; background: #090909; border: 1px solid #222;
+        }
+        .known-alt-entry {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 12px; padding: 9px 4px; border-bottom: 1px solid #1d1d1d;
+        }
+        .known-alt-entry:last-child { border-bottom: 0; }
+        .known-alt-profile-link {
+            padding: 0; border: 0; background: transparent; color: #cd1818;
+            font: inherit; font-weight: 700; cursor: pointer;
+        }
+        .known-alt-profile-link:hover { color: #ff3030; text-decoration: underline; }
+        .known-alt-certainty {
+            display: inline-block; margin-left: 7px; padding: 1px 6px;
+            border: 1px solid #444; border-radius: 2px; color: #aaa;
+            text-transform: uppercase; font-size: 0.58rem; letter-spacing: 0.04em;
+        }
+        .known-alt-certainty.likely { color: #ff4a4a; border-color: #6a1a1a; background: #210c0c; }
+        .known-alt-certainty.possible { color: #e6a23c; border-color: #644519; background: #211807; }
+        .known-alt-matched { color: #666; font-size: 0.7rem; text-align: right; }
         .user-awards-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
         .user-award-badge { background: #1a1a1a; border: 1px solid #333; color: #aaa; font-size: 0.72rem; padding: 2px 8px; border-radius: 3px; }
 
@@ -863,6 +893,7 @@
     // ════════════════════════════════════════════════════════════════════════
     const INDEX_PAGE_SIZE = 24;
     const FTS_PAGE_SIZE   = 25;
+    const FTS_FETCH_SIZE  = 100;
 
     function formatDuration(milliseconds) {
         if (milliseconds < 1000) return `${milliseconds.toFixed(1)} ms`;
@@ -879,6 +910,8 @@
     let ftsOffset      = 0;
     let ftsLastParams  = null;
     let ftsHasMore     = false;
+    let ftsTotalResults = null;
+    let ftsPageCache   = new Map();
     let ftsCurrentUid  = null;
     let suppressUrlUpdate = false;
 
@@ -1450,6 +1483,45 @@
         };
     }
 
+    function knownAltEntryHTML(alt) {
+        const userId = alt && (alt.user_id || alt.uid) ? String(alt.user_id || alt.uid) : '';
+        const username = alt && alt.username ? String(alt.username) : (userId ? `UID ${userId}` : 'Unknown user');
+        const certainty = alt && alt.certainty ? String(alt.certainty) : 'Unknown';
+        const certaintyClass = certainty.toLowerCase() === 'likely'
+            ? 'likely'
+            : (certainty.toLowerCase() === 'possible' ? 'possible' : '');
+        const profileHTML = userId
+            ? `<button type="button" class="known-alt-profile-link" data-uid="${escapeHTML(userId)}" data-username="${escapeHTML(username)}">${escapeHTML(username)}</button>`
+            : `<span style="color:#aaa;font-weight:700;">${escapeHTML(username)}</span>`;
+        return `<div class="known-alt-entry">
+            <div>${profileHTML}<span class="known-alt-certainty ${certaintyClass}">${escapeHTML(certainty)}</span></div>
+            <span class="known-alt-matched">${alt && alt.last_matched ? `Last matched ${escapeHTML(String(alt.last_matched))}` : 'Match date unknown'}</span>
+        </div>`;
+    }
+
+    function bindKnownAlts(container) {
+        const toggle = container.querySelector('.known-alts-toggle');
+        if (!toggle) return;
+        const panel = container.querySelector('.known-alts-panel');
+        const action = toggle.querySelector('.known-alts-action');
+        toggle.onclick = () => {
+            const opening = panel.hidden;
+            panel.hidden = !opening;
+            toggle.setAttribute('aria-expanded', opening ? 'true' : 'false');
+            action.textContent = opening ? '▴ Collapse' : `▾ Show ${toggle.dataset.count}`;
+        };
+        panel.addEventListener('click', event => {
+            const profileLink = event.target.closest('.known-alt-profile-link');
+            if (!profileLink) return;
+            const currentOverlay = container.closest('.user-modal-overlay');
+            showUserProfile(
+                profileLink.dataset.uid,
+                profileLink.dataset.username || '',
+                { parentOverlay: currentOverlay }
+            );
+        });
+    }
+
     function renderUserProfileBody(container, p, uid) {
         function row(label, value, cls = '') {
             if (!value && value !== 0) return '';
@@ -1471,16 +1543,26 @@
         const timeOnline  = p.time_online || '';
         const altsRaw     = p.alts;
 
-        let altsHTML;
         let alts = altsRaw;
         try { alts = JSON.parse(altsRaw); } catch(e) {}
-        if (!alts || (Array.isArray(alts) && alts.length === 0) || String(alts).trim() === '' || String(alts).trim() === '[]') {
-            altsHTML = row('Known Alts', 'None');
-        } else if (Array.isArray(alts)) {
-            altsHTML = row('Known Alts', alts.map(a => String(a).trim()).filter(Boolean).join(', ') || 'None');
-        } else {
-            altsHTML = row('Known Alts', alts);
-        }
+        if (!Array.isArray(alts)) alts = [];
+        const normalizedAlts = alts.map(alt => {
+            if (alt && typeof alt === 'object') return alt;
+            const username = String(alt || '').trim();
+            return username ? { username, certainty: 'Unknown' } : null;
+        }).filter(Boolean);
+        const altsHTML = normalizedAlts.length
+            ? `<div class="user-stat-row known-alts-row">
+                <span class="user-stat-label">Known Alts</span>
+                <span class="user-stat-value" style="flex:1;">
+                    <button type="button" class="known-alts-toggle" data-count="${normalizedAlts.length}" aria-expanded="false">
+                        <strong>${normalizedAlts.length.toLocaleString()} account${normalizedAlts.length === 1 ? '' : 's'}</strong>
+                        <span class="known-alts-action">▾ Show ${normalizedAlts.length.toLocaleString()}</span>
+                    </button>
+                </span>
+                <div class="known-alts-panel" hidden>${normalizedAlts.map(knownAltEntryHTML).join('')}</div>
+            </div>`
+            : row('Known Alts', 'None');
 
         const awardsRaw = p.awards || '';
         let awardsHTML = '';
@@ -1589,6 +1671,7 @@
             ${awardsHTML}
         `;
         bindReputationHistory(container, String(uid_val));
+        bindKnownAlts(container);
     }
 
     function searchByUser(uid, username) {
@@ -1602,6 +1685,8 @@
         ftsCurrentUid  = null;
         ftsOffset      = 0;
         ftsHasMore     = false;
+        ftsTotalResults = null;
+        ftsPageCache.clear();
         document.getElementById('fts-results').innerHTML = '';
         document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
@@ -1806,6 +1891,8 @@
     function triggerFtsSearch(initialOffset = 0) {
         ftsOffset  = Math.max(0, Number(initialOffset) || 0);
         ftsHasMore = false;
+        ftsTotalResults = null;
+        ftsPageCache.clear();
         document.getElementById('fts-results').innerHTML = '';
         document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
@@ -1830,27 +1917,10 @@
     async function runFtsQuery(offset = ftsOffset, replace = true) {
         ftsOffset = Math.max(0, Number(offset) || 0);
         const container = document.getElementById('fts-results');
-        if (replace) {
-            container.innerHTML = `<div style="text-align:center;padding:30px;color:#555;">
-                <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching…</div>`;
-        }
-
         const currentOpOnly = document.getElementById('ftsOpOnly').checked ? '1' : '0';
         const { q, author, sort, startTs, endTs, useUserPosts } = ftsLastParams || {};
 
-        let url;
-        if (useUserPosts && ftsCurrentUid) {
-            const p = new URLSearchParams({ uid: ftsCurrentUid, offset: ftsOffset, limit: FTS_PAGE_SIZE, op_only: currentOpOnly });
-            url = `/api/user_posts?${p}`;
-        } else {
-            const p = new URLSearchParams({ q: q || '', sort: sort || 'desc', offset: ftsOffset, limit: FTS_PAGE_SIZE, op_only: currentOpOnly });
-            if (author)  p.set('uid', author);
-            if (startTs) p.set('start_ts', startTs);
-            if (endTs)   p.set('end_ts', endTs);
-            url = `/api/search_posts?${p}`;
-        }
-
-        const applyFtsRows = (data, elapsedMs) => {
+        const applyFtsPage = (data, elapsedMs) => {
             const rows = data.results || data.posts || [];
             if (replace) container.innerHTML = '';
             if (rows.length === 0 && ftsOffset === 0) {
@@ -1865,21 +1935,68 @@
                 runFtsQuery(previousOffset, true);
                 return;
             }
-            ftsHasMore = typeof data.has_more === 'boolean' ? data.has_more : rows.length === FTS_PAGE_SIZE;
+            ftsTotalResults = data.total !== null && data.total !== undefined && Number.isFinite(Number(data.total))
+                ? Number(data.total)
+                : ftsTotalResults;
+            ftsHasMore = typeof data.has_more === 'boolean'
+                ? data.has_more
+                : (ftsTotalResults !== null ? ftsOffset + rows.length < ftsTotalResults : rows.length === FTS_PAGE_SIZE);
             const renderedOffset = ftsOffset;
             rows.forEach(post => container.appendChild(buildFtsResultRow(post, renderedOffset)));
             const metricsEl = document.getElementById('fts-metrics');
             const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
             const first = ftsOffset + 1;
             const last = ftsOffset + rows.length;
-            metricsEl.textContent = `${first.toLocaleString()}-${last.toLocaleString()} shown${timing}`;
+            const totalText = ftsTotalResults !== null ? ` of ${ftsTotalResults.toLocaleString()}` : '';
+            metricsEl.textContent = `${first.toLocaleString()}-${last.toLocaleString()}${totalText} shown${timing}`;
             metricsEl.style.display = 'flex';
             renderFtsPagination();
         };
 
+        const cachedPage = ftsPageCache.get(ftsOffset);
+        if (cachedPage) {
+            applyFtsPage(cachedPage, null);
+            return;
+        }
+
+        if (replace) {
+            container.innerHTML = `<div style="text-align:center;padding:30px;color:#555;">
+                <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching…</div>`;
+        }
+
+        const requestOffset = Math.floor(ftsOffset / FTS_FETCH_SIZE) * FTS_FETCH_SIZE;
+
+        let url;
+        if (useUserPosts && ftsCurrentUid) {
+            const p = new URLSearchParams({ uid: ftsCurrentUid, offset: requestOffset, limit: FTS_FETCH_SIZE, op_only: currentOpOnly });
+            url = `/api/user_posts?${p}`;
+        } else {
+            const p = new URLSearchParams({ q: q || '', sort: sort || 'desc', offset: requestOffset, limit: FTS_FETCH_SIZE, op_only: currentOpOnly });
+            if (author)  p.set('uid', author);
+            if (startTs) p.set('start_ts', startTs);
+            if (endTs)   p.set('end_ts', endTs);
+            url = `/api/search_posts?${p}`;
+        }
+
+        const cacheFtsBlock = data => {
+            const blockRows = data.results || data.posts || [];
+            const total = data.total !== null && data.total !== undefined && Number.isFinite(Number(data.total))
+                ? Number(data.total)
+                : null;
+            for (let start = 0; start < blockRows.length; start += FTS_PAGE_SIZE) {
+                const pageOffset = requestOffset + start;
+                const pageRows = blockRows.slice(start, start + FTS_PAGE_SIZE);
+                const hasMore = total !== null
+                    ? pageOffset + pageRows.length < total
+                    : (start + FTS_PAGE_SIZE < blockRows.length || Boolean(data.has_more));
+                ftsPageCache.set(pageOffset, { results: pageRows, has_more: hasMore, total });
+            }
+            return ftsPageCache.get(ftsOffset) || { results: [], has_more: false, total };
+        };
+
         const cached = cacheGet(url);
         if (cached) {
-            applyFtsRows(cached, null);
+            applyFtsPage(cacheFtsBlock(cached), null);
             return;
         }
 
@@ -1891,7 +2008,7 @@
             const res  = await apiFetch(url, { signal: _ftsAbort.signal });
             const data = await res.json();
             if (data.error) throw new Error(data.error);
-            applyFtsRows(data, performance.now() - t0);
+            applyFtsPage(cacheFtsBlock(data), performance.now() - t0);
         } catch (err) {
             if (err.name === 'AbortError') return;
             container.innerHTML = `<p style="color:#cd1818;text-align:center;padding:20px;">Search error: ${escapeHTML(err.message)}</p>`;
@@ -1916,7 +2033,10 @@
 
         const status = document.createElement('span');
         status.className = 'fts-page-status';
-        status.textContent = `Page ${Math.floor(ftsOffset / FTS_PAGE_SIZE) + 1}`;
+        const currentPage = Math.floor(ftsOffset / FTS_PAGE_SIZE) + 1;
+        status.textContent = ftsTotalResults !== null
+            ? `Page ${currentPage.toLocaleString()} of ${Math.max(1, Math.ceil(ftsTotalResults / FTS_PAGE_SIZE)).toLocaleString()}`
+            : `Page ${currentPage.toLocaleString()}`;
         wrap.appendChild(status);
 
         const next = document.createElement('button');
@@ -1931,7 +2051,7 @@
         if (!ftsLastParams) return;
         updateFtsUrl(offset);
         runFtsQuery(offset, true);
-        document.getElementById('panel-fts').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('panel-fts').scrollIntoView({ block: 'start' });
     }
 
     // ════════════════════════════════════════════════════════════════════════

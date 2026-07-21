@@ -124,6 +124,7 @@ def search_posts(
 
     extra_sql, extra_params = extra_filters()
     rows: list[dict] = []
+    total: int | None = None
 
     uid_is_numeric = uid_input and (
         str(uid_input).isdigit() or str(uid_input).startswith("pid_")
@@ -142,6 +143,7 @@ def search_posts(
                 extra_sql += " AND p.author_id = ?"
                 extra_params.append(uid_input)
 
+            fts_failed = False
             try:
                 sql = (
                     f"SELECT {select_fields} FROM fts_posts f "
@@ -156,10 +158,18 @@ def search_posts(
                 params.extend([fetch_limit, offset])
                 cur.execute(sql, params)
                 rows = [dict(r) for r in cur.fetchall()]
+                count_sql = (
+                    "SELECT COUNT(*) FROM fts_posts f "
+                    f"JOIN posts p ON {fts_posts_join} "
+                    f"WHERE {fts_where}"
+                ) + extra_sql
+                cur.execute(count_sql, fts_params + extra_params)
+                total = int(cur.fetchone()[0])
             except Exception as db_err:
                 print(f"FTS search_posts failed ({db_err}), falling back to LIKE.")
+                fts_failed = True
 
-            if not rows:
+            if fts_failed:
                 fb_sql = (
                     f"SELECT {select_fields} FROM posts p "
                     f"LEFT JOIN threads t ON t.thread_id = p.thread_id "
@@ -178,6 +188,21 @@ def search_posts(
                 fb_params.extend([fetch_limit, offset])
                 cur.execute(fb_sql, fb_params)
                 rows = [dict(r) for r in cur.fetchall()]
+                count_sql = (
+                    "SELECT COUNT(*) FROM posts p "
+                    "WHERE p.post_description LIKE ?"
+                )
+                count_params: list[Any] = [f"%{q}%"]
+                if uid_input and not uid_is_numeric:
+                    count_sql += " AND p.author_username = ?"
+                    count_params.append(uid_input)
+                elif uid_input and uid_is_numeric:
+                    count_sql += " AND p.author_id = ?"
+                    count_params.append(uid_input)
+                count_sql += extra_sql
+                count_params.extend(extra_params)
+                cur.execute(count_sql, count_params)
+                total = int(cur.fetchone()[0])
 
         elif uid_input and not uid_is_numeric:
             try:
@@ -221,7 +246,13 @@ def search_posts(
     for row in rows:
         enrich_post_row(row)
 
-    payload = {"results": rows, "has_more": has_more, "offset": offset, "limit": limit}
+    payload = {
+        "results": rows,
+        "has_more": has_more,
+        "offset": offset,
+        "limit": limit,
+        "total": total,
+    }
     cache.set(cache_key, payload, CACHE_TTL_SEARCH)
     return payload
 

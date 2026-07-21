@@ -105,11 +105,14 @@ def parse_alts_content(content: Optional[str]) -> List[Dict[str, str]]:
                 continue
 
             user_cell = cells[0]
-            link = user_cell.css_first("a[href*='user_id=']")
+            link = user_cell.css_first("a[href*='uid='], a[href*='user_id=']")
             if not link:
                 continue
 
-            user_id_match = re.search(r"user_id=(\d+)", link.attributes.get("href", ""))
+            user_id_match = re.search(
+                r"(?:^|[?&])(?:uid|user_id)=(\d+)",
+                link.attributes.get("href", ""),
+            )
             if not user_id_match:
                 continue
             alt_user_id = user_id_match.group(1)
@@ -128,6 +131,76 @@ def parse_alts_content(content: Optional[str]) -> List[Dict[str, str]]:
                 "last_matched": last_matched,
             })
     return alts
+
+
+def repair_alts_only(source: str = "auto") -> None:
+    """Reparse only alts.html and update the existing users table in place."""
+    if source == "auto":
+        source = "zip" if os.path.isfile(USERS_ZIP) else "folders"
+
+    conn = sqlite3.connect(DB_PATH, timeout=300)
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA synchronous=NORMAL")
+    pending: List[Tuple[str, str]] = []
+    processed = 0
+    users_with_alts = 0
+    updated_rows = 0
+
+    def queue_update(user_id: str, alts: List[Dict[str, str]]) -> None:
+        nonlocal processed, users_with_alts, updated_rows
+        processed += 1
+        if alts:
+            users_with_alts += 1
+        pending.append((json.dumps(alts, ensure_ascii=False), user_id))
+        if len(pending) >= 1000:
+            before = conn.total_changes
+            conn.executemany("UPDATE users SET alts = ? WHERE user_id = ?", pending)
+            updated_rows += conn.total_changes - before
+            conn.commit()
+            pending.clear()
+
+    if source == "zip":
+        if not os.path.isfile(USERS_ZIP):
+            raise FileNotFoundError(f"User archive not found: {USERS_ZIP}")
+        with zipfile.ZipFile(USERS_ZIP) as archive:
+            infos = [
+                info for info in archive.infolist()
+                if not info.is_dir() and info.filename.endswith("/alts.html")
+            ]
+            with tqdm(infos, desc="User alts", unit="user", dynamic_ncols=True) as bar:
+                for info in bar:
+                    parts = info.filename.split("/")
+                    if len(parts) != 3:
+                        continue
+                    content = archive.read(info).decode("utf-8", errors="replace")
+                    queue_update(parts[1], parse_alts_content(content))
+                    bar.set_postfix(found=users_with_alts, refresh=False)
+    elif source == "folders":
+        if not os.path.isdir(USERS_DIR):
+            raise FileNotFoundError(f"No users directory at {USERS_DIR}")
+        entries = [entry for entry in os.scandir(USERS_DIR) if entry.is_dir()]
+        with tqdm(entries, desc="User alts", unit="user", dynamic_ncols=True) as bar:
+            for entry in bar:
+                alts_path = os.path.join(entry.path, "alts.html")
+                if not os.path.isfile(alts_path):
+                    continue
+                queue_update(entry.name, parse_alts_html(alts_path))
+                bar.set_postfix(found=users_with_alts, refresh=False)
+    else:
+        raise ValueError(f"Unknown user source: {source}")
+
+    if pending:
+        before = conn.total_changes
+        conn.executemany("UPDATE users SET alts = ? WHERE user_id = ?", pending)
+        updated_rows += conn.total_changes - before
+        conn.commit()
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    conn.execute("PRAGMA journal_mode=DELETE")
+    conn.close()
+    print(
+        f"Alt repair complete: parsed {processed:,} files, "
+        f"found {users_with_alts:,} users with alts, updated {updated_rows:,} DB rows."
+    )
 
 
 def parse_alts_html(alts_path: str) -> List[Dict[str, str]]:
@@ -510,7 +583,9 @@ def create_user_fts_triggers(conn: sqlite3.Connection) -> None:
             );
         END;
 
-        CREATE TRIGGER users_fts_au AFTER UPDATE ON users BEGIN
+        CREATE TRIGGER users_fts_au AFTER UPDATE OF
+            user_id, username, user_title, user_rank, past_usernames_search
+        ON users BEGIN
             INSERT INTO fts_users(
                 fts_users, rowid, user_id, username, user_title, user_rank,
                 past_usernames_search
@@ -940,6 +1015,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--user", type=str, default=None)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument(
+        "--repair-alts",
+        action="store_true",
+        help="Only reparse alts.html and update the existing users.db rows",
+    )
     parser.add_argument("--workers", type=int, default=DEFAULT_FOLDER_WORKERS)
     parser.add_argument(
         "--db-path",
@@ -962,7 +1042,9 @@ if __name__ == "__main__":
     DB_PATH = os.path.abspath(args.db_path)
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
-    if args.user:
+    if args.repair_alts:
+        repair_alts_only(args.source)
+    elif args.user:
         result = run_migration_on_user(args.user, args.overwrite)
         print(result)
     else:

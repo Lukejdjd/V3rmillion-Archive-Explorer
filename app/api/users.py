@@ -67,6 +67,8 @@ def get_user(uid: str = Query("")) -> dict[str, Any]:
         user["user_group"] = parse_json_field(user.get("user_group"))
     if "past_usernames" in user:
         user["past_usernames"] = parse_json_field(user.get("past_usernames")) or []
+    if "alts" in user:
+        user["alts"] = parse_json_field(user.get("alts")) or []
     user["reputation_history_count"] = reputation_history_count
 
     payload = {"user": user}
