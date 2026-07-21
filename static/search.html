@@ -1519,6 +1519,7 @@
         console.debug('[profile search posts] searchByUser called', { uid, username });
         document.querySelectorAll('.user-modal-overlay').forEach(e => e.remove());
         document.querySelectorAll('.viewer-overlay').forEach(e => e.remove());
+        document.body.style.overflow = '';
         switchMode('fts');
         document.getElementById('ftsInput').value  = '';
         document.getElementById('ftsAuthor').value = uid || username;
