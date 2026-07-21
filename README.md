@@ -22,6 +22,18 @@ Combined size:
 - Queryable SQLite databases: 6,626,750,464 bytes (6.17 GiB)
 - Compressed downloads: 1,439,830,579 bytes (1.34 GiB)
 
+### What each database contains
+
+| Database | Tables and data |
+|---|---|
+| `users.db` | **498,730 user profiles** with user ID, username, title, rank/group, reputation total, post/thread counts, stars, join date, last visit, time online, awards, known alternate accounts, and username history. It also contains **428,995 individual reputation entries** with the giver's profile ID/name, Positive/Neutral/Negative rating and value, reason, exact archived date/time, and any associated post URL. An FTS5 index supports fast username, title, rank, and previous-username searches. |
+| `threads.db` | **1,028,900 thread records** with title, author, category path, date, and reply count, plus **6,139,739 posts** with body content, thread/post IDs, timestamps, author profile details captured with the post, likes/dislikes, reply references, edit information, awards, and original-poster status. Separate FTS5 indexes support fast thread-title and post-content searches. |
+
+These are processed, searchable SQLite databases. The original `users.zip`,
+`threads.zip`, and raw HTML pages are not embedded in them; download those
+source archives separately from Internet Archive if you want to reparse the
+data yourself.
+
 
 
 ## Architecture
