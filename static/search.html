@@ -237,6 +237,10 @@
         .reputation-history-type.neutral { color: #aaa; border-color: #3a3a3a; background: #171717; }
         .reputation-history-date { color: #555; font-size: 0.7rem; white-space: nowrap; }
         .reputation-history-reason { color: #bbb; font-size: 0.77rem; line-height: 1.45; }
+        .reputation-history-reason a {
+            color: #cd1818; text-decoration: underline; overflow-wrap: anywhere;
+        }
+        .reputation-history-reason a:hover { color: #ff3030; }
         .reputation-history-empty { color: #666; padding: 8px 4px; text-align: center; }
         .reputation-history-pagination {
             display: flex; align-items: center; justify-content: center;
@@ -1282,6 +1286,63 @@
         }
     }
 
+    function archivedV3rmillionHref(rawHref) {
+        try {
+            const url = new URL(rawHref, 'https://v3rmillion.net/');
+            const hostname = url.hostname.toLowerCase();
+            if (hostname !== 'v3rmillion.net' && !hostname.endsWith('.v3rmillion.net')) return null;
+            const tid = url.searchParams.get('tid');
+            const uid = url.searchParams.get('uid');
+            if (tid) return `/static/search.html?id=${encodeURIComponent(tid)}`;
+            if (uid) return `/static/search.html?mode=fts&uid=${encodeURIComponent(uid)}`;
+            return '#';
+        } catch {
+            return null;
+        }
+    }
+
+    function linkifyPlainUrls(container) {
+        function walk(node) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                const parentTag = node.parentNode ? node.parentNode.tagName.toLowerCase() : '';
+                if (['a', 'script', 'style', 'code', 'pre'].includes(parentTag)) return;
+                const parts = node.nodeValue.split(/(https?:\/\/[^\s<>"'\]\)]+)/g);
+                if (parts.length <= 1) return;
+
+                const fragment = document.createDocumentFragment();
+                parts.forEach((part, index) => {
+                    if (index % 2 === 0) {
+                        fragment.appendChild(document.createTextNode(part));
+                        return;
+                    }
+
+                    let url = part;
+                    const trailing = url.match(/['";.,\)>]+$/);
+                    const trailingText = trailing ? trailing[0] : '';
+                    if (trailingText) url = url.slice(0, -trailingText.length);
+
+                    const link = document.createElement('a');
+                    link.href = archivedV3rmillionHref(url) || url;
+                    link.target = '_blank';
+                    link.rel = 'noopener';
+                    link.textContent = url;
+                    fragment.appendChild(link);
+                    if (trailingText) fragment.appendChild(document.createTextNode(trailingText));
+                });
+                node.parentNode.replaceChild(fragment, node);
+                return;
+            }
+
+            if (node.nodeType === Node.ELEMENT_NODE) {
+                const tag = node.tagName.toLowerCase();
+                if (!['script', 'style', 'code', 'pre', 'a'].includes(tag)) {
+                    [...node.childNodes].forEach(walk);
+                }
+            }
+        }
+        walk(container);
+    }
+
     function reputationEntryHTML(entry) {
         const rating = Number(entry.rating || 0);
         const ratingText = `${rating > 0 ? '+' : ''}${rating}`;
@@ -1335,6 +1396,7 @@
                     list.innerHTML = '<div class="reputation-history-empty">No archived reputation entries.</div>';
                 } else {
                     list.innerHTML = entries.map(reputationEntryHTML).join('');
+                    list.querySelectorAll('.reputation-history-reason').forEach(linkifyPlainUrls);
                 }
                 const total = Number(data.total || 0);
                 const pages = Math.max(1, Math.ceil(total / pageSize));
@@ -2411,19 +2473,11 @@
         function rewriteV3rmillionLinks(container) {
             container.querySelectorAll('a[href*="v3rmillion.net"]').forEach(link => {
                 const href = link.getAttribute('href');
-                try {
-                    const url = new URL(href);
-                    const tid = url.searchParams.get('tid');
-                    const uid = url.searchParams.get('uid');
-                    if (tid) {
-                        link.setAttribute('href', `/static/search.html?id=${tid}`);
-                    } else if (uid) {
-                        link.setAttribute('href', `/static/search.html?mode=fts&uid=${uid}`);
-                    } else {
-                        link.setAttribute('href', '#');
-                    }
+                const archivedHref = archivedV3rmillionHref(href);
+                if (archivedHref !== null) {
+                    link.setAttribute('href', archivedHref);
                     link.textContent = href;
-                } catch {}
+                }
             });
         }
 
