@@ -43,6 +43,7 @@ def search_posts(
     uid_input = uid
     offset = bounded_int(offset, 0, 0, 100_000_000)
     limit = bounded_int(limit, 50, 1, 100)
+    fetch_limit = limit + 1
     op_only_flag = op_only == "1"
 
     try:
@@ -152,7 +153,7 @@ def search_posts(
                 if sort != "relevance":
                     sql += order_clause()
                 sql += " LIMIT ? OFFSET ?"
-                params.extend([limit, offset])
+                params.extend([fetch_limit, offset])
                 cur.execute(sql, params)
                 rows = [dict(r) for r in cur.fetchall()]
             except Exception as db_err:
@@ -174,7 +175,7 @@ def search_posts(
                 fb_sql += extra_sql
                 fb_params.extend(extra_params)
                 fb_sql += order_clause() + " LIMIT ? OFFSET ?"
-                fb_params.extend([limit, offset])
+                fb_params.extend([fetch_limit, offset])
                 cur.execute(fb_sql, fb_params)
                 rows = [dict(r) for r in cur.fetchall()]
 
@@ -186,7 +187,7 @@ def search_posts(
                     "LEFT JOIN threads t ON t.thread_id = p.thread_id "
                     f"{left_join_user} WHERE f.author_username = ?"
                 ) + extra_sql + order_clause() + " LIMIT ? OFFSET ?"
-                params = [uid_input] + extra_params + [limit, offset]
+                params = [uid_input] + extra_params + [fetch_limit, offset]
                 cur.execute(sql, params)
                 rows = [dict(r) for r in cur.fetchall()]
             except Exception as db_err:
@@ -196,7 +197,7 @@ def search_posts(
                     f"LEFT JOIN threads t ON t.thread_id = p.thread_id "
                     f"{left_join_user} WHERE p.author_username = ?"
                 ) + extra_sql + order_clause() + " LIMIT ? OFFSET ?"
-                params = [uid_input] + extra_params + [limit, offset]
+                params = [uid_input] + extra_params + [fetch_limit, offset]
                 cur.execute(sql, params)
                 rows = [dict(r) for r in cur.fetchall()]
 
@@ -209,16 +210,18 @@ def search_posts(
                 f"LEFT JOIN threads t ON t.thread_id = p.thread_id "
                 f"{left_join_user} WHERE 1=1"
             ) + extra_sql + order_clause() + " LIMIT ? OFFSET ?"
-            params = extra_params + [limit, offset]
+            params = extra_params + [fetch_limit, offset]
             cur.execute(sql, params)
             rows = [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
 
+    has_more = len(rows) > limit
+    rows = rows[:limit]
     for row in rows:
         enrich_post_row(row)
 
-    payload = {"results": rows}
+    payload = {"results": rows, "has_more": has_more, "offset": offset, "limit": limit}
     cache.set(cache_key, payload, CACHE_TTL_SEARCH)
     return payload
 

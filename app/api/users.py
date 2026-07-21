@@ -87,6 +87,7 @@ def user_posts(
     op_only_flag = op_only == "1"
     offset = bounded_int(offset, 0, 0, 100_000_000)
     limit = bounded_int(limit, 50, 1, 100)
+    fetch_limit = limit + 1
 
     cache = get_cache()
     cache_key = cache.make_key(
@@ -113,12 +114,14 @@ def user_posts(
                   WHERE p.author_id = ? {op_filter}
                   ORDER BY CAST(p.unix_time AS INTEGER) DESC, p.post_number DESC
                   LIMIT ? OFFSET ?"""
-        cur.execute(sql, (uid, limit, offset))
+        cur.execute(sql, (uid, fetch_limit, offset))
         posts = [enrich_post_row(dict(r)) for r in cur.fetchall()]
     finally:
         conn.close()
 
-    payload = {"posts": posts}
+    has_more = len(posts) > limit
+    posts = posts[:limit]
+    payload = {"posts": posts, "has_more": has_more, "offset": offset, "limit": limit}
     cache.set(cache_key, payload, CACHE_TTL_USER)
     return payload
 

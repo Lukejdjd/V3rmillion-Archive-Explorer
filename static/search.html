@@ -479,9 +479,9 @@
             .search-mode-tab { flex: 1; padding: 7px 8px; font-size: .68rem; }
         }
 
-        /* ── FTS load-more ── */
-        #fts-load-more-wrap { text-align: center; margin-top: 12px; display: none; }
-        #fts-result-count { font-size: 0.72rem; color: #555; margin-top: 6px; }
+        /* ── FTS pagination ── */
+        #fts-pagination-wrap { display: none; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+        .fts-page-status { min-width: 72px; color: #777; font-size: 12px; text-align: center; }
 
         /* ── Index search pagination ── */
         #index-pagination-wrap { display: flex; justify-content: center; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
@@ -786,12 +786,7 @@
             <div style="margin-top:14px;">
                 <div id="fts-metrics" class="search-metrics"></div>
                 <div id="fts-results"></div>
-                <div id="fts-load-more-wrap">
-                    <button class="btn btn-sm" id="fts-load-more-btn"
-                        style="background:#1a1a1a;color:#cd1818;border:1px solid #2a2a2a;font-size:0.8rem;"
-                        onclick="loadMoreFts()">Load More Results</button>
-                    <div id="fts-result-count"></div>
-                </div>
+                <div id="fts-pagination-wrap"></div>
             </div>
         </div>
 
@@ -867,7 +862,7 @@
     // CONSTANTS & STATE
     // ════════════════════════════════════════════════════════════════════════
     const INDEX_PAGE_SIZE = 24;
-    const FTS_PAGE_SIZE   = 30;
+    const FTS_PAGE_SIZE   = 25;
 
     function formatDuration(milliseconds) {
         if (milliseconds < 1000) return `${milliseconds.toFixed(1)} ms`;
@@ -883,8 +878,7 @@
     // FTS state
     let ftsOffset      = 0;
     let ftsLastParams  = null;
-    let ftsTotalShown  = 0;
-    let ftsExhausted   = false;
+    let ftsHasMore     = false;
     let ftsCurrentUid  = null;
     let suppressUrlUpdate = false;
 
@@ -1127,18 +1121,24 @@
         }, replace);
     }
 
-    function updateFtsUrl(replace = false) {
-        if (!ftsLastParams) return;
+    function ftsUrlState(offset = ftsOffset) {
+        if (!ftsLastParams) return {};
         const { q, author, sort, opOnly, startTs, endTs } = ftsLastParams;
-        setUrlState({
+        return {
             mode: 'fts',
             q,
             uid: author,
             sort: sort && sort !== 'desc' ? sort : '',
             op_only: opOnly === '1' ? '1' : '',
             start_ts: startTs,
-            end_ts: endTs
-        }, replace);
+            end_ts: endTs,
+            offset: offset || ''
+        };
+    }
+
+    function updateFtsUrl(offset = ftsOffset, replace = false) {
+        if (!ftsLastParams) return;
+        setUrlState(ftsUrlState(offset), replace);
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -1601,17 +1601,15 @@
         document.getElementById('ftsAuthor').value = uid || username;
         ftsCurrentUid  = null;
         ftsOffset      = 0;
-        ftsExhausted   = false;
-        ftsTotalShown  = 0;
+        ftsHasMore     = false;
         document.getElementById('fts-results').innerHTML = '';
-        document.getElementById('fts-load-more-wrap').style.display = 'none';
+        document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
         ftsLastParams = { q: '', author: uid || username, sort: 'desc', opOnly: '0', startTs: null, endTs: null, useUserPosts: false };
         console.debug('[profile search posts] ftsLastParams prepared', ftsLastParams);
 
-        updateFtsUrl();
-
-        runFtsQuery(true);
+        updateFtsUrl(0);
+        runFtsQuery(0, true);
     }
 
     document.addEventListener('click', function(event) {
@@ -1805,12 +1803,11 @@
     // ════════════════════════════════════════════════════════════════════════
     // FTS SEARCH
     // ════════════════════════════════════════════════════════════════════════
-    function triggerFtsSearch() {
-        ftsOffset     = 0;
-        ftsExhausted  = false;
-        ftsTotalShown = 0;
+    function triggerFtsSearch(initialOffset = 0) {
+        ftsOffset  = Math.max(0, Number(initialOffset) || 0);
+        ftsHasMore = false;
         document.getElementById('fts-results').innerHTML = '';
-        document.getElementById('fts-load-more-wrap').style.display = 'none';
+        document.getElementById('fts-pagination-wrap').style.display = 'none';
         document.getElementById('fts-metrics').style.display = 'none';
 
         const q      = document.getElementById('ftsInput').value.trim();
@@ -1826,11 +1823,12 @@
         }
         if (ftsLastParams && ftsLastParams.author !== author) ftsCurrentUid = null;
         ftsLastParams = { q, author, sort, opOnly, startTs, endTs, useUserPosts: ftsCurrentUid ? true : false };
-        if (!suppressUrlUpdate) updateFtsUrl();
-        runFtsQuery(true);
+        if (!suppressUrlUpdate) updateFtsUrl(ftsOffset);
+        runFtsQuery(ftsOffset, true);
     }
 
-    async function runFtsQuery(replace = false) {
+    async function runFtsQuery(offset = ftsOffset, replace = true) {
+        ftsOffset = Math.max(0, Number(offset) || 0);
         const container = document.getElementById('fts-results');
         if (replace) {
             container.innerHTML = `<div style="text-align:center;padding:30px;color:#555;">
@@ -1857,17 +1855,26 @@
             if (replace) container.innerHTML = '';
             if (rows.length === 0 && ftsOffset === 0) {
                 container.innerHTML = `<p style="color:#555;text-align:center;padding:20px;">${currentOpOnly === '1' ? 'No thread starters found.' : 'No posts found.'}</p>`;
+                ftsHasMore = false;
+                renderFtsPagination();
                 return;
             }
-            ftsTotalShown += rows.length;
-            ftsOffset     += rows.length;
-            ftsExhausted   = rows.length < FTS_PAGE_SIZE;
-            rows.forEach(post => container.appendChild(buildFtsResultRow(post)));
+            if (rows.length === 0 && ftsOffset > 0) {
+                const previousOffset = Math.max(0, ftsOffset - FTS_PAGE_SIZE);
+                updateFtsUrl(previousOffset, true);
+                runFtsQuery(previousOffset, true);
+                return;
+            }
+            ftsHasMore = typeof data.has_more === 'boolean' ? data.has_more : rows.length === FTS_PAGE_SIZE;
+            const renderedOffset = ftsOffset;
+            rows.forEach(post => container.appendChild(buildFtsResultRow(post, renderedOffset)));
             const metricsEl = document.getElementById('fts-metrics');
             const timing = elapsedMs != null ? ` (${formatDuration(elapsedMs)})` : ' (cached)';
-            metricsEl.textContent = `${ftsTotalShown.toLocaleString()} post${ftsTotalShown === 1 ? '' : 's'} shown${timing}`;
+            const first = ftsOffset + 1;
+            const last = ftsOffset + rows.length;
+            metricsEl.textContent = `${first.toLocaleString()}-${last.toLocaleString()} shown${timing}`;
             metricsEl.style.display = 'flex';
-            document.getElementById('fts-load-more-wrap').style.display = ftsExhausted ? 'none' : 'block';
+            renderFtsPagination();
         };
 
         const cached = cacheGet(url);
@@ -1891,8 +1898,40 @@
         }
     }
 
-    function loadMoreFts() {
-        if (!ftsExhausted && ftsLastParams) runFtsQuery(false);
+    function renderFtsPagination() {
+        const wrap = document.getElementById('fts-pagination-wrap');
+        wrap.innerHTML = '';
+        if (!ftsLastParams || (ftsOffset === 0 && !ftsHasMore)) {
+            wrap.style.display = 'none';
+            return;
+        }
+        wrap.style.display = 'flex';
+
+        const previous = document.createElement('button');
+        previous.className = 'idx-page-btn';
+        previous.textContent = 'Previous';
+        previous.disabled = ftsOffset === 0;
+        previous.onclick = () => changeFtsPage(Math.max(0, ftsOffset - FTS_PAGE_SIZE));
+        wrap.appendChild(previous);
+
+        const status = document.createElement('span');
+        status.className = 'fts-page-status';
+        status.textContent = `Page ${Math.floor(ftsOffset / FTS_PAGE_SIZE) + 1}`;
+        wrap.appendChild(status);
+
+        const next = document.createElement('button');
+        next.className = 'idx-page-btn';
+        next.textContent = 'Next';
+        next.disabled = !ftsHasMore;
+        next.onclick = () => changeFtsPage(ftsOffset + FTS_PAGE_SIZE);
+        wrap.appendChild(next);
+    }
+
+    function changeFtsPage(offset) {
+        if (!ftsLastParams) return;
+        updateFtsUrl(offset);
+        runFtsQuery(offset, true);
+        document.getElementById('panel-fts').scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     // ════════════════════════════════════════════════════════════════════════
@@ -2077,7 +2116,7 @@
         wrap.appendChild(next);
     }
 
-    function buildFtsResultRow(post) {
+    function buildFtsResultRow(post, searchOffset = ftsOffset) {
         const div         = document.createElement('div');
         div.className     = 'post-result-card';
         const threadId    = post.thread_id || '';
@@ -2110,7 +2149,7 @@
             tLink.onclick = (e) => {
                 e.preventDefault();
                 const tid = tLink.getAttribute('data-tid');
-                setUrlState({ id: tid });
+                setUrlState({ ...ftsUrlState(searchOffset), id: tid });
                 fetchAndRenderThread(tid, post.post_id || null);
             };
         }
@@ -2162,10 +2201,33 @@
     // ════════════════════════════════════════════════════════════════════════
     // DEEP LINKING
     // ════════════════════════════════════════════════════════════════════════
+    function restoreFtsSearchFromParams(params) {
+        switchMode('fts');
+        document.getElementById('ftsInput').value = params.get('q') || '';
+        document.getElementById('ftsAuthor').value = params.get('uid') || '';
+        document.getElementById('ftsSortOrder').value = params.get('sort') || 'desc';
+        document.getElementById('ftsOpOnly').checked = params.get('op_only') === '1';
+
+        const startTs = Number(params.get('start_ts') || 0);
+        const endTs = Number(params.get('end_ts') || 0);
+        document.getElementById('ftsDateFrom').value = startTs ? new Date(startTs * 1000).toISOString().slice(0, 10) : '';
+        document.getElementById('ftsDateTo').value = endTs ? new Date(endTs * 1000).toISOString().slice(0, 10) : '';
+        document.getElementById('dateFilterActiveLabel').style.display = (startTs || endTs) ? 'inline' : 'none';
+        ftsCurrentUid = null;
+
+        suppressUrlUpdate = true;
+        triggerFtsSearch(parseInt(params.get('offset') || '0', 10) || 0);
+        suppressUrlUpdate = false;
+    }
+
     function checkDeepLinkingParameter() {
         const urlParams = new URLSearchParams(window.location.search);
         const targetThreadId = urlParams.get('id');
+        const mode = urlParams.get('mode');
         if (targetThreadId) {
+            if (mode === 'fts' && (urlParams.get('q') || urlParams.get('uid'))) {
+                restoreFtsSearchFromParams(urlParams);
+            }
             fetchAndRenderThread(targetThreadId);
             return;
         }
@@ -2176,7 +2238,6 @@
             return;
         }
 
-        const mode = urlParams.get('mode');
         if (mode === 'users') {
             switchMode('users');
             const by = urlParams.get('by') || 'username';
@@ -2205,16 +2266,7 @@
         }
 
         if (mode === 'fts') {
-            switchMode('fts');
-            const q      = urlParams.get('q')   || '';
-            const author = urlParams.get('uid') || '';
-            if (q)      document.getElementById('ftsInput').value  = q;
-            if (author) document.getElementById('ftsAuthor').value = author;
-            if (q || author) {
-                suppressUrlUpdate = true;
-                triggerFtsSearch();
-                suppressUrlUpdate = false;
-            }
+            restoreFtsSearchFromParams(urlParams);
             return;
         }
 
@@ -3055,15 +3107,7 @@
         }
 
         if (mode === 'fts') {
-            switchMode('fts');
-            const q = params.get('q') || '', author = params.get('uid') || '';
-            if (q)      document.getElementById('ftsInput').value  = q;
-            if (author) document.getElementById('ftsAuthor').value = author;
-            if (q || author) {
-                suppressUrlUpdate = true;
-                triggerFtsSearch();
-                suppressUrlUpdate = false;
-            }
+            restoreFtsSearchFromParams(params);
             return;
         }
 
