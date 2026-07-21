@@ -287,9 +287,18 @@ def search_users(
             if sort == "thread_count":
                 return sql + f" ORDER BY CAST({t}thread_count AS INTEGER) {dir_sql}"
             if sort == "reputation":
-                return sql + f" ORDER BY CAST({t}reputation AS INTEGER) {dir_sql}"
+                return sql + f" ORDER BY CAST(NULLIF({t}reputation, '') AS INTEGER) {dir_sql} NULLS LAST"
             if sort == "joined":
-                return sql + f" ORDER BY {t}joined {dir_sql}"
+                return sql + (
+                    f" ORDER BY CASE"
+                    f" WHEN LENGTH({t}joined) = 10"
+                    f" THEN CAST(SUBSTR({t}joined,7,4) AS INTEGER) * 10000"
+                    f" + CAST(SUBSTR({t}joined,1,2) AS INTEGER) * 100"
+                    f" + CAST(SUBSTR({t}joined,4,2) AS INTEGER)"
+                    f" WHEN {t}joined = 'Today' THEN 99999999"
+                    f" WHEN {t}joined = 'Yesterday' THEN 99999998"
+                    f" ELSE NULL END {dir_sql} NULLS LAST"
+                )
             return sql + f" ORDER BY CAST({t}post_count AS INTEGER) {dir_sql}"
 
         aliased = used_fts
