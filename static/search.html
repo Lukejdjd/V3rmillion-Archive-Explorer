@@ -413,7 +413,7 @@
         }
         .index-filter-grid {
             display: grid;
-            grid-template-columns: 1.45fr .9fr 1.45fr .9fr .8fr .7fr;
+            grid-template-columns: 1.35fr .8fr .9fr 1.35fr .9fr .8fr .7fr;
             gap: 12px;
             align-items: end;
             margin: 0;
@@ -460,6 +460,7 @@
         @media (max-width: 1199.98px) {
             .archive-shell { width: min(96vw, 1100px); }
             .index-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .index-filter-grid .filter-action { grid-column: 1 / -1; }
             .fts-filter-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
         }
         @media (max-width: 767.98px) {
@@ -666,6 +667,18 @@
                                         <option value="Minecraft">Minecraft</option>
                                         <option value="Counter-Strike">Counter-Strike</option>
                                     </optgroup>
+                                </select>
+                            </div>
+                            <div class="col-lg-2 col-md-6 mb-2">
+                                <label class="small font-weight-bold text-muted mb-1 d-block">Thread prefix</label>
+                                <select id="prefixDropdown" class="form-control filter-select">
+                                    <option value="" selected>Any Prefix</option>
+                                    <option value="exploit">Exploit</option>
+                                    <option value="giveaway">Giveaway</option>
+                                    <option value="release">Release</option>
+                                    <option value="request">Request</option>
+                                    <option value="free">Free</option>
+                                    <option value="paid">Paid</option>
                                 </select>
                             </div>
                             <div class="col-lg-2 col-md-6 mb-2">
@@ -1102,9 +1115,10 @@
 
     function updateIndexUrl(offset = indexOffset, replace = false) {
         if (!indexLastParams) return;
-        const { q, cat, smode, sort, order } = indexLastParams;
+        const { q, cat, prefix, smode, sort, order } = indexLastParams;
         setUrlState({
             cat,
+            prefix,
             q,
             smode: smode && smode !== 'title' ? smode : '',
             sort: sort && sort !== 'relevance' ? sort : '',
@@ -1627,12 +1641,13 @@
 
         const q       = document.getElementById('searchInput').value.trim();
         const cat     = document.getElementById('categoryDropdown').value;
+        const prefix  = document.getElementById('prefixDropdown').value;
         const smode   = document.getElementById('searchTarget').value;
         const sort    = document.getElementById('sortBy').value;
         const order   = document.getElementById('sortOrder').value;
 
         // Map smode to correct API param
-        indexLastParams = { q, cat, smode, sort, order };
+        indexLastParams = { q, cat, prefix, smode, sort, order };
         if (!suppressUrlUpdate) updateIndexUrl(0);
         runIndexQuery(0, true);
     }
@@ -1665,10 +1680,11 @@
                 <div class="loading-spinner" style="margin:0 auto 10px;"></div>Searching…</div>`;
         }
 
-        const { q, cat, smode, sort, order } = indexLastParams;
+        const { q, cat, prefix, smode, sort, order } = indexLastParams;
 
         const params = new URLSearchParams({ sort, order, offset, limit: INDEX_PAGE_SIZE });
         if (cat)  params.set('cat', cat);
+        if (prefix) params.set('prefix', prefix);
 
         // Route the keyword to the right API param based on search mode
         if (q) {
@@ -2203,12 +2219,14 @@
         }
 
         const cat   = urlParams.get('cat')   || '';
+        const prefix = urlParams.get('prefix') || '';
         const query = urlParams.get('q')     || '';
         const sort  = urlParams.get('sort')  || 'relevance';
         const order = urlParams.get('order') || 'asc';
         const smode = urlParams.get('smode') || 'title';
 
         if (cat) document.getElementById('categoryDropdown').value = cat;
+        if (prefix) document.getElementById('prefixDropdown').value = prefix;
         if (smode) {
             const ms = document.getElementById('searchTarget');
             ms.value = smode; ms.dispatchEvent(new Event('change'));
@@ -2217,8 +2235,8 @@
         if (sort)  document.getElementById('sortBy').value  = sort;
         if (order) document.getElementById('sortOrder').value = order;
 
-        if (cat || query || sort !== 'relevance' || order !== 'asc') {
-            indexLastParams = { q: query, cat, smode, sort, order };
+        if (cat || prefix || query || sort !== 'relevance' || order !== 'asc') {
+            indexLastParams = { q: query, cat, prefix, smode, sort, order };
             suppressUrlUpdate = true;
             runIndexQuery(parseInt(urlParams.get('offset') || '0', 10), true);
             suppressUrlUpdate = false;
@@ -3051,17 +3069,19 @@
 
         switchMode('index');
         const cat   = params.get('cat')   || '';
+        const prefix = params.get('prefix') || '';
         const smode = params.get('smode') || 'title';
         const query = params.get('q')     || '';
         const sort  = params.get('sort')  || 'relevance';
         const order = params.get('order') || 'asc';
         if (cat) document.getElementById('categoryDropdown').value = cat;
+        if (prefix) document.getElementById('prefixDropdown').value = prefix;
         const ms2 = document.getElementById('searchTarget');
         ms2.value = smode; ms2.dispatchEvent(new Event('change'));
         document.getElementById('searchInput').value  = query;
         document.getElementById('sortBy').value       = sort;
         document.getElementById('sortOrder').value    = order;
-        indexLastParams = { q: query, cat, smode, sort, order };
+        indexLastParams = { q: query, cat, prefix, smode, sort, order };
         suppressUrlUpdate = true;
         runIndexQuery(parseInt(params.get('offset') || '0', 10), true);
         suppressUrlUpdate = false;

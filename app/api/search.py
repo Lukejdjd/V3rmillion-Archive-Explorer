@@ -17,6 +17,15 @@ from app.database.sqlite import connect_archive, threads_db_path
 
 router = APIRouter(tags=["search"])
 
+THREAD_PREFIXES = {
+    "exploit": "[EXPLOIT]",
+    "giveaway": "[GIVEAWAY]",
+    "release": "[RELEASE]",
+    "request": "[REQUEST]",
+    "free": "[FREE]",
+    "paid": "[PAID]",
+}
+
 
 @router.get("/search_posts")
 def search_posts(
@@ -218,6 +227,7 @@ def search_posts(
 def search_threads(
     q: str = Query(""),
     cat: str = Query(""),
+    prefix: str = Query(""),
     author: str = Query(""),
     sort: str = Query("relevance"),
     order: str = Query("desc"),
@@ -228,6 +238,9 @@ def search_threads(
 
     q = (q or "").strip()
     cat = (cat or "").strip()
+    prefix = (prefix or "").strip().lower()
+    if prefix and prefix not in THREAD_PREFIXES:
+        raise HTTPException(status_code=400, detail="invalid thread prefix")
     author = (author or "").strip()
     offset = bounded_int(offset, 0, 0, 100_000_000)
     limit = bounded_int(limit, 24, 1, 100)
@@ -238,6 +251,7 @@ def search_threads(
         {
             "q": q,
             "cat": cat,
+            "prefix": prefix,
             "author": author,
             "sort": sort,
             "order": order,
@@ -305,6 +319,11 @@ def search_threads(
         if cat:
             base += " AND t.categories LIKE ?" if (has_fts and q) else " AND categories LIKE ?"
             params.append(f"%{cat}%")
+
+        if prefix:
+            title_col = "t.title" if (has_fts and q) else "title"
+            base += f" AND {title_col} LIKE ? COLLATE NOCASE"
+            params.append(f"{THREAD_PREFIXES[prefix]}%")
 
         if author:
             col = "f.author_username" if (has_fts and q) else "author_username"
